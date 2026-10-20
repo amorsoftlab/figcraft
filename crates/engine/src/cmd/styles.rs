@@ -471,7 +471,11 @@ fn bind_style(s: &mut Session, p: &Value) -> Result<Value> {
             if style.bound.get(&key) != Some(&id)
                 && let StyleKind::Paint { paints } = &mut style.kind
             {
-                rebind_paint_alpha(paints, &mut [], &key, true);
+                let var_alpha = match doc.variables.resolve(&id, &BTreeMap::new()) {
+                    Some(VariableValue::Color(c)) => Some(c.a),
+                    _ => None,
+                };
+                rebind_paint_alpha(paints, &mut [], &key, RebindOp::Bind { var_alpha });
             }
             style.bound.insert(key, id);
         }
@@ -479,7 +483,7 @@ fn bind_style(s: &mut Session, p: &Value) -> Result<Value> {
             if style.bound.remove(&key).is_some()
                 && let StyleKind::Paint { paints } = &mut style.kind
             {
-                rebind_paint_alpha(paints, &mut [], &key, false);
+                rebind_paint_alpha(paints, &mut [], &key, RebindOp::Unbind);
             }
         }
     }
@@ -786,17 +790,24 @@ pub fn bind(s: &mut Session, p: &Value) -> Result<Value> {
         }
     }
     for i in ids {
+        let var_alpha = match &vid {
+            Some(v) => match doc.variables.resolve(v, &doc.modes_for(i)) {
+                Some(VariableValue::Color(c)) => Some(c.a),
+                _ => None,
+            },
+            None => None,
+        };
         let n = doc.get_mut(i)?;
         match &vid {
             Some(v) => {
                 if n.bound.get(&field) != Some(v) {
-                    rebind_paint_alpha(&mut n.fills, &mut n.strokes, &field, true);
+                    rebind_paint_alpha(&mut n.fills, &mut n.strokes, &field, RebindOp::Bind { var_alpha });
                 }
                 n.bound.insert(field.clone(), v.clone());
             }
             None => {
                 if n.bound.remove(&field).is_some() {
-                    rebind_paint_alpha(&mut n.fills, &mut n.strokes, &field, false);
+                    rebind_paint_alpha(&mut n.fills, &mut n.strokes, &field, RebindOp::Unbind);
                 }
             }
         }
@@ -804,11 +815,18 @@ pub fn bind(s: &mut Session, p: &Value) -> Result<Value> {
     ok()
 }
 
-/// A colour variable bound to a solid paint owns its whole colour, alpha included. Binding restarts
-/// the opacity (which holds the alpha a typed colour had, see `Paint::solid`) at 1, so the
-/// variable's alpha applies once; unbinding moves the colour's alpha back into the opacity, where a
-/// typed colour keeps it. An opacity set while bound multiplies on top and stays.
-pub(crate) fn rebind_paint_alpha(fills: &mut [Paint], strokes: &mut [Paint], field: &str, bind: bool) {
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub(crate) enum RebindOp {
+    Bind { var_alpha: Option<f32> },
+    Unbind,
+}
+
+/// A colour variable bound to a solid paint owns its whole colour, alpha included. Binding a
+/// variable that has alpha restarts the opacity (which holds the alpha a typed colour had, see
+/// `Paint::solid`) at 1, so the variable's alpha applies once; binding an opaque variable leaves
+/// any existing paint opacity untouched (#923). Unbinding moves the colour's alpha back into the
+/// opacity, where a typed colour keeps it. An opacity set while bound multiplies on top and stays.
+pub(crate) fn rebind_paint_alpha(fills: &mut [Paint], strokes: &mut [Paint], field: &str, op: RebindOp) {
     use super::lists::{BoundList, list_binding};
     let Some((list, i, "color")) = list_binding(field) else { return };
     let paints = match list {
@@ -819,8 +837,17 @@ pub(crate) fn rebind_paint_alpha(fills: &mut [Paint], strokes: &mut [Paint], fie
     if let Some(p) = paints.get_mut(i)
         && let PaintKind::Solid { color } = &mut p.kind
     {
-        p.opacity = if bind { 1.0 } else { p.opacity * color.a };
-        color.a = 1.0;
+        match op {
+            RebindOp::Bind { var_alpha: Some(a) } if a < 1.0 - 1e-4 => {
+                p.opacity = 1.0;
+                color.a = 1.0;
+            }
+            RebindOp::Bind { .. } => {}
+            RebindOp::Unbind => {
+                p.opacity *= color.a;
+                color.a = 1.0;
+            }
+        }
     }
 }
 

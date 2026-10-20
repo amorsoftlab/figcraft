@@ -838,19 +838,41 @@ pub fn apply(cmd: &str, doc: &mut Document, id: NodeId, props: &Map<String, Valu
                 crate::cmd::styles::apply_style_ref(doc, id, k, sid.as_deref())?;
             }
             "boundVariables" => {
-                let n = doc.get_mut(id)?;
                 if let Some(o) = v.as_object() {
-                    for (field, var) in o {
-                        match var.as_str() {
-                            Some(vid) => {
-                                if n.bound.get(field).map(String::as_str) != Some(vid) {
-                                    crate::cmd::styles::rebind_paint_alpha(&mut n.fills, &mut n.strokes, field, true);
+                    let modes = doc.modes_for(id);
+                    let updates: Vec<(String, Option<String>, Option<f32>)> = o
+                        .iter()
+                        .map(|(field, var)| {
+                            let vid = var.as_str().map(str::to_string);
+                            let alpha = vid.as_deref().and_then(|v| match doc.variables.resolve(v, &modes) {
+                                Some(VariableValue::Color(c)) => Some(c.a),
+                                _ => None,
+                            });
+                            (field.clone(), vid, alpha)
+                        })
+                        .collect();
+                    let n = doc.get_mut(id)?;
+                    for (field, vid, var_alpha) in updates {
+                        match vid {
+                            Some(v) => {
+                                if n.bound.get(&field) != Some(&v) {
+                                    crate::cmd::styles::rebind_paint_alpha(
+                                        &mut n.fills,
+                                        &mut n.strokes,
+                                        &field,
+                                        crate::cmd::styles::RebindOp::Bind { var_alpha },
+                                    );
                                 }
-                                n.bound.insert(field.clone(), vid.to_string());
+                                n.bound.insert(field, v);
                             }
                             None => {
-                                if n.bound.remove(field).is_some() {
-                                    crate::cmd::styles::rebind_paint_alpha(&mut n.fills, &mut n.strokes, field, false);
+                                if n.bound.remove(&field).is_some() {
+                                    crate::cmd::styles::rebind_paint_alpha(
+                                        &mut n.fills,
+                                        &mut n.strokes,
+                                        &field,
+                                        crate::cmd::styles::RebindOp::Unbind,
+                                    );
                                 }
                             }
                         }

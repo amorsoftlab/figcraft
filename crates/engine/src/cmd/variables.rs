@@ -290,7 +290,7 @@ pub(crate) fn forget_variables(doc: &mut Document, gone: &BTreeSet<VariableId>) 
     for id in users {
         let n = doc.get_mut(id)?;
         for (field, _) in n.bound.iter().filter(|(_, v)| gone.contains(*v)) {
-            super::styles::rebind_paint_alpha(&mut n.fills, &mut n.strokes, field, false);
+            super::styles::rebind_paint_alpha(&mut n.fills, &mut n.strokes, field, super::styles::RebindOp::Unbind);
         }
         n.bound.retain(|_, v| !gone.contains(v));
     }

@@ -129,3 +129,52 @@ fn code_gives_a_translucent_stroke_its_alpha_once() {
     let code = s.execute("inspect.code", &json!({"id": r.0})).unwrap()["code"].as_str().unwrap_or_default().to_string();
     assert!(code.contains("solid rgba(255, 0, 0, 0.50)"), "{code}");
 }
+
+#[test]
+fn binding_an_opaque_colour_variable_keeps_paint_opacity() {
+    let mut s = Session::new();
+    let r = s.execute("shape.rectangle", &json!({"x": 0, "y": 0, "width": 10, "height": 10, "props": {"fill": "#000000"}})).unwrap();
+    let r = NodeId(r["id"].as_u64().unwrap());
+    ex(&mut s, "fill.set", json!({"ids": [r.0], "index": 0, "opacity": 0.15}));
+    assert!(near(s.doc().unwrap().node(r).unwrap().fills[0].opacity, 0.15));
+
+    ex(&mut s, "variable.createCollection", json!({"name": "Tokens", "modes": ["Mode 1"]}));
+    ex(&mut s, "variable.create", json!({"collection": "Tokens", "name": "brand", "type": "color", "value": "#FF0000"}));
+
+    // Binding an opaque variable must preserve the 0.15 opacity (#923).
+    ex(&mut s, "variable.bind", json!({"ids": [r.0], "field": "fill", "variable": "brand"}));
+    let fill = &s.doc().unwrap().node(r).unwrap().fills[0];
+    assert!(near(fill.opacity, 0.15), "opacity dropped to {}", fill.opacity);
+    assert!(near(alpha(&s, r), 0.15), "effective alpha is {}", alpha(&s, r));
+
+    // Unbinding keeps the opacity at 0.15.
+    ex(&mut s, "variable.bind", json!({"ids": [r.0], "field": "fill", "variable": null}));
+    let fill = &s.doc().unwrap().node(r).unwrap().fills[0];
+    assert!(near(fill.opacity, 0.15), "unbound opacity is {}", fill.opacity);
+
+    // A paint style made from a translucent colour, bound to an opaque variable (#923).
+    let st = s.execute("style.create", &json!({"type": "paint", "name": "Tint15", "value": "#00000026"})).unwrap()["id"].clone();
+    ex(&mut s, "style.bind", json!({"style": st, "field": "fills/0/color", "variable": "brand"}));
+    ex(&mut s, "style.apply", json!({"ids": [r.0], "style": st}));
+    assert!(near(alpha(&s, r), 0.15), "style alpha is {}", alpha(&s, r));
+}
+
+#[test]
+fn node_set_bound_variables_with_opaque_colour_keeps_paint_opacity() {
+    let mut s = Session::new();
+    let r = s.execute("shape.rectangle", &json!({"x": 0, "y": 0, "width": 10, "height": 10, "props": {"fill": "#000000"}})).unwrap();
+    let r = NodeId(r["id"].as_u64().unwrap());
+    ex(&mut s, "fill.set", json!({"ids": [r.0], "index": 0, "opacity": 0.25}));
+
+    ex(&mut s, "variable.createCollection", json!({"name": "Tokens", "modes": ["Mode 1"]}));
+    ex(&mut s, "variable.create", json!({"collection": "Tokens", "name": "brand", "type": "color", "value": "#00FF00"}));
+    let var = s.doc().unwrap().variables.get("brand").unwrap().id.clone();
+
+    ex(&mut s, "node.set", json!({"id": r.0, "props": {"boundVariables": {"fill": var}}}));
+    let fill = &s.doc().unwrap().node(r).unwrap().fills[0];
+    assert!(near(fill.opacity, 0.25), "node.set dropped opacity to {}", fill.opacity);
+
+    ex(&mut s, "node.set", json!({"id": r.0, "props": {"boundVariables": {"fill": null}}}));
+    let fill = &s.doc().unwrap().node(r).unwrap().fills[0];
+    assert!(near(fill.opacity, 0.25), "node.set unbound opacity is {}", fill.opacity);
+}
