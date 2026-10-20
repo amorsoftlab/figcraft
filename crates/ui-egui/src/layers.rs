@@ -690,6 +690,8 @@ fn search_field(ui: &mut Ui, t: &Tokens, w: f32, id: Id, hint: &str, text: &mut 
     }
 }
 
+/// The layers list panel: tree view of nodes under the current page with search, expand/collapse,
+/// visibility and lock toggles, renaming, reordering, and context menu dispatch.
 fn layers(app: &mut FigApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     let w = ui.available_width();

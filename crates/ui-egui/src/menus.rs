@@ -757,6 +757,7 @@ const TOP_MENUS: &[&str] = &[
     tr_noop("Help"),
 ];
 
+/// Draws active popups: the main menu, the layer and canvas context menus, and the Actions palette.
 pub fn popups(app: &mut FigApp, ctx: &egui::Context) {
     let t = Tokens::get(ctx);
     // A closed menu forgets its open submenus (and a context menu opened somewhere else starts
