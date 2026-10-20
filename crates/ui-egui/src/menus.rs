@@ -910,6 +910,9 @@ pub fn popups(app: &mut FigApp, ctx: &egui::Context) {
                 {
                     entries.insert(at + 1, entry);
                 }
+                if has_sel && let Some(at) = entries.iter().rposition(|e| e.1 == "object.toggleLock" || e.1 == "section.toggleContents") {
+                    entries.insert(at + 1, (tr("Highlight color"), "ui.highlightColor"));
+                }
                 // A right-clicked ruler guide (selected, with no layers) can be removed.
                 if !has_sel && app.session.ds().is_ok_and(|d| d.selected_guide().is_some()) {
                     entries.splice(0..0, [(tr("Remove guide"), "guide.remove"), ("-", "")]);
@@ -917,6 +920,12 @@ pub fn popups(app: &mut FigApp, ctx: &egui::Context) {
                 for (label, id) in &entries {
                     if *label == "-" {
                         separator(ui);
+                        continue;
+                    }
+                    if *id == "ui.highlightColor" {
+                        if highlight_color_menu(app, ui, &ids, &t) {
+                            close = true;
+                        }
                         continue;
                     }
                     let sc = crate::shortcuts::shortcut(id).unwrap_or("");
@@ -991,6 +1000,92 @@ fn select_layer_menu(app: &mut FigApp, ui: &mut Ui, pos: egui::Pos2, t: &Tokens)
             true
         }
         None => false,
+    }
+}
+
+/// A menu item with a color swatch indicator on the left.
+fn color_item(ui: &mut Ui, label: &str, color: Color32, checked: bool, t: &Tokens) -> bool {
+    let w = ui.available_width();
+    let (r, resp) = ui.allocate_exact_size(vec2(w, 28.0), Sense::click());
+    a11y::menu_item(&resp, label, "", checked.then_some(true));
+    a11y::own_focus(&resp);
+    let hov = plain_row_hover(ui, &resp);
+    if hov {
+        ui.painter().rect_filled(r, CornerRadius::same(5), t.menu_hover);
+    }
+    let swatch_rect = Rect::from_center_size(pos2(r.min.x + 14.0, r.center().y), vec2(12.0, 12.0));
+    ui.painter().rect_filled(swatch_rect, CornerRadius::same(3), color);
+    if checked {
+        icons::paint(ui.painter(), swatch_rect.shrink(1.0), Icon::Check, Color32::WHITE);
+    }
+    let galley = ui.painter().layout_no_wrap(label.to_string(), regular(12.0), t.menu_text);
+    need_width(ui, 32.0 + galley.size().x + 20.0);
+    ui.painter().galley(pos2(r.min.x + 30.0, r.center().y - galley.size().y / 2.0), galley, t.menu_text);
+    resp.clicked()
+}
+
+/// The context menu's "Highlight color" submenu to customize layer / main frame colors.
+fn highlight_color_menu(app: &mut FigApp, ui: &mut Ui, ids: &[figcraft_doc::NodeId], t: &Tokens) -> bool {
+    enum Action {
+        Set(Color32),
+        ApplyAll(Color32),
+        Reset,
+    }
+    let first_id = ids.first().copied();
+    let current_col =
+        first_id.and_then(|id| app.ui.layer_colors.get(&id).copied()).unwrap_or_else(|| app.ui.main_group_color.unwrap_or(t.accent_text));
+
+    let picked = submenu_at(ui, Id::new("ctx_highlight_color"), "highlight_color", tr("Highlight color"), 4.0, true, t, |ui| {
+        let mut act = None;
+        let colors = [
+            (tr("Sky Blue (Default)"), t.accent_text),
+            (tr("Blue"), Color32::from_rgb(0x3B, 0x82, 0xF6)),
+            (tr("Purple"), Color32::from_rgb(0xA8, 0x55, 0xF7)),
+            (tr("Pink"), Color32::from_rgb(0xEC, 0x48, 0x99)),
+            (tr("Red"), Color32::from_rgb(0xEF, 0x44, 0x44)),
+            (tr("Orange"), Color32::from_rgb(0xF9, 0x73, 0x16)),
+            (tr("Amber"), Color32::from_rgb(0xF5, 0x9E, 0x0B)),
+            (tr("Green"), Color32::from_rgb(0x10, 0xB9, 0x81)),
+            (tr("Teal"), Color32::from_rgb(0x14, 0xB8, 0xA6)),
+            (tr("Gray"), Color32::from_rgb(0x94, 0xA3, 0xB8)),
+        ];
+        for (name, col) in colors {
+            let is_checked = current_col == col;
+            if color_item(ui, &name, col, is_checked, t) {
+                act = Some(Action::Set(col));
+            }
+        }
+        separator(ui);
+        if item(ui, tr("Apply to all main frames"), "", true, false, t) {
+            act = Some(Action::ApplyAll(current_col));
+        }
+        if item(ui, tr("Reset to default"), "", true, false, t) {
+            act = Some(Action::Reset);
+        }
+        act
+    });
+
+    if let Some(act) = picked {
+        match act {
+            Action::Set(col) => {
+                for id in ids {
+                    app.ui.layer_colors.insert(*id, col);
+                }
+            }
+            Action::ApplyAll(col) => {
+                app.ui.main_group_color = Some(col);
+                app.ui.layer_colors.clear();
+            }
+            Action::Reset => {
+                for id in ids {
+                    app.ui.layer_colors.remove(id);
+                }
+                app.ui.main_group_color = None;
+            }
+        }
+        true
+    } else {
+        false
     }
 }
 
