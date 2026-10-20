@@ -1075,7 +1075,17 @@ fn highlight_color_menu(app: &mut FigApp, ui: &mut Ui, ids: &[figcraft_doc::Node
             }
             Action::ApplyAll(col) => {
                 app.ui.main_group_color = Some(col);
-                app.ui.layer_colors.clear();
+                if let Ok(doc) = app.session.doc() {
+                    app.ui.layer_colors.retain(|id, _| {
+                        let is_main = doc.node(*id).is_some_and(|n| {
+                            let on_page = n.parent.and_then(|p| doc.node(p)).is_some_and(|p| p.is_page());
+                            on_page
+                                && (n.kind.is_frame_like()
+                                    || matches!(n.kind, figcraft_doc::NodeKind::Section { .. } | figcraft_doc::NodeKind::Group))
+                        });
+                        !is_main
+                    });
+                }
             }
             Action::Reset => {
                 for id in ids {
