@@ -1162,6 +1162,14 @@ fn color_item(ui: &mut Ui, label: &str, color: Color32, checked: bool, t: &Token
     resp.clicked()
 }
 
+/// Returns true if a node is a top-level frame-like, section, or group directly on a page.
+pub(crate) fn is_main_level_node(doc: &figcraft_doc::Document, id: figcraft_doc::NodeId) -> bool {
+    doc.node(id).is_some_and(|n| {
+        n.parent.and_then(|p| doc.node(p)).is_some_and(|p| p.is_page())
+            && (n.kind.is_frame_like() || matches!(n.kind, figcraft_doc::NodeKind::Section { .. } | figcraft_doc::NodeKind::Group))
+    })
+}
+
 /// The context menu's "Highlight color" submenu to customize layer / main frame colors.
 fn highlight_color_menu(app: &mut FigApp, ui: &mut Ui, ids: &[figcraft_doc::NodeId], t: &Tokens) -> bool {
     enum Action {
@@ -1169,8 +1177,15 @@ fn highlight_color_menu(app: &mut FigApp, ui: &mut Ui, ids: &[figcraft_doc::Node
         ApplyAll(Option<Color32>),
         Reset,
     }
-    let first_id = ids.first().copied();
-    let current_custom = first_id.and_then(|id| app.ui.layer_colors.get(&id).copied()).or(app.ui.main_group_color);
+    let doc_uid = app.session.ds().ok().map(|ds| ds.uid).unwrap_or(0);
+    let first_id =
+        ids.iter().copied().find(|id| app.session.doc().ok().is_some_and(|doc| is_main_level_node(doc, *id))).or_else(|| ids.first().copied());
+    let first_is_main = first_id.is_some_and(|id| app.session.doc().ok().is_some_and(|doc| is_main_level_node(doc, id)));
+    let current_custom = first_id.and_then(|id| app.ui.layer_colors.get(&(doc_uid, id)).copied()).or(if first_is_main {
+        app.ui.main_group_color.get(&doc_uid).copied()
+    } else {
+        None
+    });
 
     let picked = submenu_at(ui, Id::new("ctx_highlight_color"), "highlight_color", tr("Highlight color"), 4.0, true, t, |ui| {
         let mut act = None;
@@ -1207,38 +1222,34 @@ fn highlight_color_menu(app: &mut FigApp, ui: &mut Ui, ids: &[figcraft_doc::Node
             Action::Set(val) => {
                 for id in ids {
                     if let Some(col) = val {
-                        app.ui.layer_colors.insert(*id, col);
+                        app.ui.layer_colors.insert((doc_uid, *id), col);
                     } else {
-                        app.ui.layer_colors.remove(id);
+                        app.ui.layer_colors.remove(&(doc_uid, *id));
                     }
                 }
             }
             Action::ApplyAll(val) => {
-                app.ui.main_group_color = val;
+                if let Some(col) = val {
+                    app.ui.main_group_color.insert(doc_uid, col);
+                } else {
+                    app.ui.main_group_color.remove(&doc_uid);
+                }
                 if let Ok(doc) = app.session.doc() {
-                    app.ui.layer_colors.retain(|id, _| {
-                        let is_main = doc.node(*id).is_some_and(|n| {
-                            let on_page = n.parent.and_then(|p| doc.node(p)).is_some_and(|p| p.is_page());
-                            on_page
-                                && (n.kind.is_frame_like()
-                                    || matches!(n.kind, figcraft_doc::NodeKind::Section { .. } | figcraft_doc::NodeKind::Group))
-                        });
-                        !is_main
+                    app.ui.layer_colors.retain(|(uid, id), _| {
+                        if *uid != doc_uid {
+                            return true;
+                        }
+                        !is_main_level_node(doc, *id)
                     });
                 }
             }
             Action::Reset => {
                 for id in ids {
-                    app.ui.layer_colors.remove(id);
+                    app.ui.layer_colors.remove(&(doc_uid, *id));
                 }
-                let touches_main = app.session.doc().ok().is_some_and(|doc| {
-                    ids.iter().filter_map(|i| doc.node(*i)).any(|n| {
-                        n.parent.and_then(|p| doc.node(p)).is_some_and(|p| p.is_page())
-                            && (n.kind.is_frame_like() || matches!(n.kind, figcraft_doc::NodeKind::Section { .. } | figcraft_doc::NodeKind::Group))
-                    })
-                });
+                let touches_main = app.session.doc().ok().is_some_and(|doc| ids.iter().any(|i| is_main_level_node(doc, *i)));
                 if touches_main {
-                    app.ui.main_group_color = None;
+                    app.ui.main_group_color.remove(&doc_uid);
                 }
             }
         }
