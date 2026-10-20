@@ -79,22 +79,24 @@ pub fn rail(app: &mut FigApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     let r = ui.max_rect();
     let mut y = r.min.y + 8.0;
-    // Main menu (logo).
-    let lr = Rect::from_center_size(pos2(r.center().x, y + 16.0), vec2(36.0, 32.0));
-    let lresp = ui.interact(lr, ui.id().with("rail_menu"), Sense::click()).tip(tr("Main menu"));
-    if lresp.hovered() || app.ui.main_menu {
-        ui.painter().rect_filled(lr, CornerRadius::same(6), t.hover);
+    // Main menu (logo) on the left rail is only shown when the top menu bar is not active.
+    if !app.ui.show_menu_bar {
+        let lr = Rect::from_center_size(pos2(r.center().x, y + 16.0), vec2(36.0, 32.0));
+        let lresp = ui.interact(lr, ui.id().with("rail_menu"), Sense::click()).tip(tr("Main menu"));
+        if lresp.hovered() || app.ui.main_menu {
+            ui.painter().rect_filled(lr, CornerRadius::same(6), t.hover);
+        }
+        icons::paint(ui.painter(), Rect::from_center_size(lr.center(), vec2(18.0, 18.0)), Icon::Logo, t.icon);
+        if lresp.clicked() {
+            app.ui.main_menu = !app.ui.main_menu;
+        }
+        if app.ui.main_menu {
+            a11y::popup(&mut app.ui.nav, lresp.id, crate::menus::main_menu_id());
+        }
+        y += 44.0;
+        ui.painter().line_segment([pos2(r.min.x + 18.0, y), pos2(r.max.x - 18.0, y)], Stroke::new(1.0, t.border));
+        y += 12.0;
     }
-    icons::paint(ui.painter(), Rect::from_center_size(lr.center(), vec2(18.0, 18.0)), Icon::Logo, t.icon);
-    if lresp.clicked() {
-        app.ui.main_menu = !app.ui.main_menu;
-    }
-    if app.ui.main_menu {
-        a11y::popup(&mut app.ui.nav, lresp.id, crate::menus::main_menu_id());
-    }
-    y += 44.0;
-    ui.painter().line_segment([pos2(r.min.x + 18.0, y), pos2(r.max.x - 18.0, y)], Stroke::new(1.0, t.border));
-    y += 12.0;
     let items =
         [(Icon::Page, tr("File"), Some(LeftTab::File)), (Icon::Assets, tr("Assets"), Some(LeftTab::Assets)), (Icon::Styles, tr("Variables"), None)];
     for (icon, label, tab) in items {
