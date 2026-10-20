@@ -85,3 +85,26 @@ fn rename_file_edits_the_file_name_in_place() {
     assert_eq!(ui.app.session.doc().unwrap().name, "Brand kit");
     assert!(ui.app.ui.last_error.is_none());
 }
+
+#[test]
+fn top_menu_bar_opens_and_switches_menus() {
+    let mut ui = Ui::new(Session::new());
+    ui.app.ui.show_menu_bar = true;
+    ui.frame(vec![]);
+    assert_eq!(ui.app.ui.top_menu, None);
+
+    // Opening a menu
+    ui.app.ui.top_menu = Some("File");
+    ui.frame(vec![]);
+    assert_eq!(ui.app.ui.top_menu, Some("File"));
+
+    // Switching to Edit
+    ui.app.ui.top_menu = Some("Edit");
+    ui.frame(vec![]);
+    assert_eq!(ui.app.ui.top_menu, Some("Edit"));
+
+    // Closing
+    ui.app.ui.top_menu = None;
+    ui.frame(vec![]);
+    assert_eq!(ui.app.ui.top_menu, None);
+}

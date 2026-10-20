@@ -502,6 +502,14 @@ pub struct UiState {
     /// The frame or section whose name label on the canvas is being renamed (a double-click on it).
     pub rename_label: Option<layers::Rename>,
     pub main_menu: bool,
+    /// Whether the Photoshop-style top horizontal menu bar is shown.
+    pub show_menu_bar: bool,
+    /// Currently open top-level menu in the top menu bar (e.g. Some("File")).
+    pub top_menu: Option<&'static str>,
+    /// Screen rect of the active top-level menu button.
+    pub top_menu_rect: Option<egui::Rect>,
+    /// Screen rect of the entire top menu bar.
+    pub top_menu_bar_rect: Option<egui::Rect>,
     pub palette: Option<String>,
     /// The Actions palette's tab.
     pub palette_tab: menus::PaletteTab,
@@ -676,6 +684,10 @@ impl Default for UiState {
             rename_page: None,
             rename_label: None,
             main_menu: false,
+            show_menu_bar: !cfg!(test),
+            top_menu: None,
+            top_menu_rect: None,
+            top_menu_bar_rect: None,
             palette: None,
             palette_tab: menus::PaletteTab::All,
             palette_hi: 0,
@@ -1571,6 +1583,7 @@ impl FigApp {
         // The Inspect tab measures on hover without Alt.
         self.session.tool.redlines = self.ui.right_tab == RightTab::Inspect;
         self.end_pen_outside_design();
+        menus::top_menu_bar(self, ui);
         tabs::tab_bar(self, ui);
         if self.ui.present.is_some() {
             // A close request can arrive while the presenter fills the window. Let its unsaved

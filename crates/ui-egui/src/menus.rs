@@ -6,7 +6,7 @@ use figcraft_engine::catalog::{MENU, SEP};
 use serde_json::json;
 
 use crate::FigApp;
-use crate::a11y;
+use crate::a11y::{self, Tip};
 use crate::i18n::{self, tr, tr_noop, trf, trn};
 use crate::icons::{self, Icon};
 use crate::theme::{Tokens, regular};
@@ -743,7 +743,7 @@ fn over_menu(ctx: &egui::Context) -> bool {
     ctx.input(|i| i.pointer.interact_pos()).and_then(|p| ctx.layer_id_at(p)).is_some_and(|l| l.order == egui::Order::Foreground)
 }
 
-const TOP_MENUS: &[&str] = &[
+pub const TOP_MENUS: &[&str] = &[
     tr_noop("File"),
     tr_noop("Edit"),
     tr_noop("View"),
@@ -756,6 +756,102 @@ const TOP_MENUS: &[&str] = &[
     tr_noop("Libraries"),
     tr_noop("Help"),
 ];
+
+/// Draws the Photoshop-style top horizontal menu bar:
+/// Logo, File, Edit, View, Object, Text, Arrange, Vector, Plugins, Preferences, Libraries, Help, and Quick Actions.
+pub fn top_menu_bar(app: &mut FigApp, ui: &mut Ui) {
+    let hidden = app.session.ds().map(|d| d.view.ui_hidden).unwrap_or(false);
+    if !app.ui.show_menu_bar || hidden || app.ui.present.is_some() {
+        return;
+    }
+    let t = Tokens::get(ui.ctx());
+    const BAR_HEIGHT: f32 = 30.0;
+    egui::Panel::top("top_menu_bar").exact_size(BAR_HEIGHT).frame(egui::Frame::NONE.fill(t.tab_bar).stroke(Stroke::new(1.0, t.border))).show(
+        ui,
+        |ui| {
+            let rect = ui.max_rect();
+            app.ui.top_menu_bar_rect = Some(rect);
+
+            let mut x = rect.min.x + 8.0;
+
+            // Logo button on far left: clicking goes to/toggles Home.
+            let logo_r = Rect::from_center_size(pos2(x + 12.0, rect.center().y), vec2(24.0, 24.0));
+            let logo_resp = ui.interact(logo_r, ui.id().with("menu_bar_logo"), Sense::click()).tip(tr("Home"));
+            if logo_resp.hovered() {
+                ui.painter().rect_filled(logo_r, CornerRadius::same(5), t.hover);
+            }
+            icons::paint(ui.painter(), Rect::from_center_size(logo_r.center(), vec2(16.0, 16.0)), Icon::Logo, t.icon);
+            if logo_resp.clicked() {
+                app.ui.home = !app.ui.home;
+            }
+            x += 32.0;
+
+            // Horizontal menu items: File, Edit, View, Object, Text, Arrange, Vector, Plugins, Preferences, Libraries, Help
+            for &top in TOP_MENUS {
+                let label = tr(top);
+                let galley = ui.painter().layout_no_wrap(label.to_string(), regular(12.0), t.menu_text);
+                let btn_w = galley.size().x + 16.0;
+                let btn_r = Rect::from_min_size(pos2(x, rect.min.y + 3.0), vec2(btn_w, BAR_HEIGHT - 6.0));
+                let resp = ui.interact(btn_r, ui.id().with(("top_menu_btn", top)), Sense::click());
+
+                let is_open = app.ui.top_menu == Some(top);
+                if is_open {
+                    ui.painter().rect_filled(btn_r, CornerRadius::same(4), t.hover);
+                    app.ui.top_menu_rect = Some(btn_r);
+                } else if resp.hovered() {
+                    ui.painter().rect_filled(btn_r, CornerRadius::same(4), t.hover);
+                }
+
+                let text_col = if is_open { t.accent_text } else { t.menu_text };
+                ui.painter().galley(pos2(btn_r.min.x + 8.0, btn_r.center().y - galley.size().y / 2.0), galley, text_col);
+
+                // Clicking toggles, or hovering while any menu is open switches to this menu.
+                if resp.clicked() {
+                    if is_open {
+                        app.ui.top_menu = None;
+                    } else {
+                        app.ui.top_menu = Some(top);
+                        app.ui.top_menu_rect = Some(btn_r);
+                    }
+                } else if resp.hovered() && app.ui.top_menu.is_some() && !is_open {
+                    app.ui.top_menu = Some(top);
+                    app.ui.top_menu_rect = Some(btn_r);
+                }
+
+                x += btn_w + 2.0;
+            }
+
+            // Right side: Quick actions search bar button.
+            let right_x = rect.max.x - 148.0;
+            if right_x > x + 20.0 {
+                let act_r = Rect::from_min_size(pos2(right_x, rect.min.y + 3.0), vec2(140.0, BAR_HEIGHT - 6.0));
+                let act_resp = ui.interact(act_r, ui.id().with("menu_bar_actions"), Sense::click()).tip(tr("Actions…"));
+                if act_resp.hovered() {
+                    ui.painter().rect_filled(act_r, CornerRadius::same(5), t.hover);
+                } else {
+                    ui.painter().rect_filled(act_r, CornerRadius::same(5), Color32::from_white_alpha(10));
+                }
+                icons::paint(
+                    ui.painter(),
+                    Rect::from_center_size(pos2(act_r.min.x + 14.0, act_r.center().y), vec2(12.0, 12.0)),
+                    Icon::Search,
+                    t.menu_dim,
+                );
+                ui.painter().text(pos2(act_r.min.x + 28.0, act_r.center().y), Align2::LEFT_CENTER, tr("Actions…"), regular(11.0), t.menu_dim);
+                ui.painter().text(
+                    pos2(act_r.max.x - 8.0, act_r.center().y),
+                    Align2::RIGHT_CENTER,
+                    pretty_shortcut(crate::shortcuts::shortcut("app.actions").unwrap_or("")),
+                    regular(10.0),
+                    t.menu_dim,
+                );
+                if act_resp.clicked() {
+                    set_palette(&mut app.ui, true);
+                }
+            }
+        },
+    );
+}
 
 /// Draws active popups: the main menu, the layer and canvas context menus, and the Actions palette.
 pub fn popups(app: &mut FigApp, ctx: &egui::Context) {
@@ -810,6 +906,26 @@ pub fn popups(app: &mut FigApp, ctx: &egui::Context) {
         if close || (clicked_outside && !area.response.hovered()) {
             app.ui.main_menu = false;
             forget_tree(ctx, main_menu_id());
+        }
+    }
+    // Top menu bar dropdown popup.
+    if let Some(top) = app.ui.top_menu {
+        let pos = app.ui.top_menu_rect.map_or(pos2(50.0, 30.0), |r| pos2(r.min.x, r.max.y + 2.0));
+        let mut close = false;
+        let area = egui::Area::new(Id::new("top_menu_bar_dropdown")).fixed_pos(pos).order(egui::Order::Foreground).constrain(true).show(ctx, |ui| {
+            menu_frame(ui, &t, At { root: Id::new("top_menu_bar_dropdown"), path: top.to_string() }, |ui| {
+                if menu_level(app, ui, top) {
+                    close = true;
+                }
+            });
+        });
+        let clicked_outside = ctx.input(|i| i.pointer.any_pressed())
+            && !over_menu(ctx)
+            && !app.ui.top_menu_bar_rect.is_some_and(|r| ctx.input(|i| i.pointer.interact_pos().is_some_and(|p| r.contains(p))));
+        let escape = ctx.input(|i| i.key_pressed(egui::Key::Escape));
+        if close || (clicked_outside && !area.response.hovered()) || escape {
+            app.ui.top_menu = None;
+            forget_tree(ctx, Id::new("top_menu_bar_dropdown"));
         }
     }
     // Context menu (from the keyboard: at the focused layer row or the canvas selection, taking the
