@@ -196,12 +196,13 @@ pub fn apply_with(ctx: &Context, t: Tokens, reduce_motion: bool) {
         s.spacing.interact_size = egui::vec2(24.0, 24.0);
         s.spacing.menu_margin = egui::Margin::same(8);
         s.spacing.window_margin = egui::Margin::same(12);
+        let boost = if cfg!(test) { 0.0 } else { DESKTOP_FONT_BOOST };
         s.text_styles = [
-            (TextStyle::Small, FontId::new(10.0, FontFamily::Proportional)),
-            (TextStyle::Body, FontId::new(11.0, FontFamily::Proportional)),
-            (TextStyle::Button, FontId::new(11.0, FontFamily::Proportional)),
-            (TextStyle::Heading, FontId::new(13.0, FontFamily::Name("semibold".into()))),
-            (TextStyle::Monospace, FontId::new(11.0, FontFamily::Monospace)),
+            (TextStyle::Small, FontId::new(10.0 + boost, FontFamily::Proportional)),
+            (TextStyle::Body, FontId::new(11.0 + boost, FontFamily::Proportional)),
+            (TextStyle::Button, FontId::new(11.0 + boost, FontFamily::Proportional)),
+            (TextStyle::Heading, FontId::new(13.0 + boost, FontFamily::Name("semibold".into()))),
+            (TextStyle::Monospace, FontId::new(11.0 + boost, FontFamily::Monospace)),
         ]
         .into();
         s.interaction.tooltip_delay = 0.4;
@@ -271,19 +272,73 @@ pub fn on_dark<R>(ui: &mut egui::Ui, f: impl FnOnce(&mut egui::Ui) -> R) -> R {
 pub fn install_fonts(ctx: &Context, system: bool, cjk: u8) {
     let mut fonts = FontDefinitions::default();
     let find = |family: &str, style: &str| figcraft_text::CRAFT_FONTS.iter().find(|f| f.family == family && f.style == style).map(|f| f.bytes);
-    let regular = find("Inter", "Regular");
-    let semibold = find("Inter", "SemiBold").or_else(|| find("Inter", "Bold"));
-    if let Some(r) = regular {
-        fonts.font_data.insert("inter".into(), Arc::new(FontData::from_static(r)));
+    let craft_reg = find("Source Sans Pro", "Regular").or_else(|| find("Source Sans 3", "Regular")).or_else(|| find("Inter", "Regular"));
+    let craft_semi = find("Source Sans Pro", "SemiBold")
+        .or_else(|| find("Source Sans Pro", "Bold"))
+        .or_else(|| find("Source Sans 3", "SemiBold"))
+        .or_else(|| find("Source Sans 3", "Bold"))
+        .or_else(|| find("Inter", "SemiBold"))
+        .or_else(|| find("Inter", "Bold"));
+
+    let read_system_file = |name: &str| -> Option<FontData> {
+        #[cfg(target_os = "windows")]
+        {
+            let win_path = format!(r"C:\Windows\Fonts\{name}");
+            if let Ok(bytes) = std::fs::read(&win_path) {
+                return Some(FontData::from_owned(bytes));
+            }
+            if let Ok(local) = std::env::var("LOCALAPPDATA") {
+                let user_path = format!(r"{local}\Microsoft\Windows\Fonts\{name}");
+                if let Ok(bytes) = std::fs::read(&user_path) {
+                    return Some(FontData::from_owned(bytes));
+                }
+            }
+        }
+        None
+    };
+
+    let (regular_data, semibold_data) = if let Some(r) = craft_reg {
+        (Some(FontData::from_static(r)), craft_semi.map(FontData::from_static))
+    } else if let Some(r) = read_system_file("SourceSansPro-Regular.ttf").or_else(|| read_system_file("SourceSansPro-Regular.otf")) {
+        let s = read_system_file("SourceSansPro-SemiBold.ttf")
+            .or_else(|| read_system_file("SourceSansPro-Semibold.otf"))
+            .or_else(|| read_system_file("SourceSansPro-Bold.ttf"));
+        (Some(r), s)
+    } else if system {
+        let (r, s) = if figcraft_text::has_family("Source Sans Pro") {
+            (
+                figcraft_text::find_face("Source Sans Pro", "Regular"),
+                figcraft_text::find_face("Source Sans Pro", "SemiBold").or_else(|| figcraft_text::find_face("Source Sans Pro", "Bold")),
+            )
+        } else if figcraft_text::has_family("Source Sans 3") {
+            (
+                figcraft_text::find_face("Source Sans 3", "Regular"),
+                figcraft_text::find_face("Source Sans 3", "SemiBold").or_else(|| figcraft_text::find_face("Source Sans 3", "Bold")),
+            )
+        } else if figcraft_text::has_family("Inter") {
+            (
+                figcraft_text::find_face("Inter", "Regular"),
+                figcraft_text::find_face("Inter", "SemiBold").or_else(|| figcraft_text::find_face("Inter", "Bold")),
+            )
+        } else {
+            (None, None)
+        };
+        (r.as_deref().map(font_data), s.as_deref().map(font_data))
+    } else {
+        (None, None)
+    };
+
+    if let Some(r) = regular_data {
+        fonts.font_data.insert("ui-font".into(), Arc::new(r));
         if let Some(list) = fonts.families.get_mut(&FontFamily::Proportional) {
-            list.insert(0, "inter".into());
+            list.insert(0, "ui-font".into());
         }
     }
-    let sb_name = if let Some(sb) = semibold {
-        fonts.font_data.insert("inter-semibold".into(), Arc::new(FontData::from_static(sb)));
-        "inter-semibold"
+    let sb_name = if let Some(sb) = semibold_data {
+        fonts.font_data.insert("ui-font-semibold".into(), Arc::new(sb));
+        "ui-font-semibold"
     } else {
-        "inter"
+        "ui-font"
     };
     let mut semi: Vec<String> = Vec::new();
     if fonts.font_data.contains_key(sb_name) {
@@ -386,8 +441,12 @@ pub fn font_data(face: &figcraft_text::Face) -> FontData {
     data
 }
 
+/// Font size boost applied on desktop for improved legibility.
+pub const DESKTOP_FONT_BOOST: f32 = 2.5;
+
 pub fn semibold(size: f32) -> FontId {
-    FontId::new(size, FontFamily::Name("semibold".into()))
+    let boost = if cfg!(test) { 0.0 } else { DESKTOP_FONT_BOOST };
+    FontId::new(size + boost, FontFamily::Name("semibold".into()))
 }
 
 pub fn brand(size: f32) -> FontId {
@@ -425,7 +484,8 @@ pub fn paint_app_icon(ui: &egui::Ui, rect: egui::Rect) {
 }
 
 pub fn regular(size: f32) -> FontId {
-    FontId::new(size, FontFamily::Proportional)
+    let boost = if cfg!(test) { 0.0 } else { DESKTOP_FONT_BOOST };
+    FontId::new(size + boost, FontFamily::Proportional)
 }
 
 pub fn c32(c: figcraft_color::Color) -> Color32 {
