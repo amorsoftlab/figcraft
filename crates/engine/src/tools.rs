@@ -661,6 +661,92 @@ fn on_corner_square(doc: &Document, sel: &[NodeId], p: Point, zoom: f64) -> bool
 /// handles: the canvas draws just its outline (the handles still answer just outside it).
 pub const SMALL_BOX_PX: f64 = 16.0;
 
+/// Whether `a` is painted above `b` (in front of `b`) on the canvas.
+fn is_painted_above(doc: &Document, a: NodeId, b: NodeId) -> bool {
+    if a == b {
+        return false;
+    }
+    if doc.is_ancestor(b, a) {
+        return true;
+    }
+    if doc.is_ancestor(a, b) {
+        return false;
+    }
+    let mut a_anc = doc.ancestors(a);
+    a_anc.insert(0, a);
+    let mut b_anc = doc.ancestors(b);
+    b_anc.insert(0, b);
+    a_anc.reverse();
+    b_anc.reverse();
+    let mut common_parent = None;
+    let mut a_branch = a;
+    let mut b_branch = b;
+    for (x, y) in a_anc.iter().zip(b_anc.iter()) {
+        if x == y {
+            common_parent = Some(*x);
+        } else {
+            a_branch = *x;
+            b_branch = *y;
+            break;
+        }
+    }
+    if let Some(p_id) = common_parent
+        && let Some(p) = doc.node(p_id)
+    {
+        let order: Vec<NodeId> = p.paint_order().collect();
+        let a_idx = order.iter().position(|&id| id == a_branch);
+        let b_idx = order.iter().position(|&id| id == b_branch);
+        if let (Some(ai), Some(bi)) = (a_idx, b_idx) {
+            return ai > bi;
+        }
+    }
+    false
+}
+
+/// If the pointer is inside an already selected layer or the selection's box, return the selected
+/// layer (or first eligible selected layer in the selection box).
+fn selected_fallback(doc: &Document, sel: &[NodeId], pt: Point) -> Option<NodeId> {
+    if sel.is_empty() {
+        return None;
+    }
+    sel.iter()
+        .copied()
+        .find(|&s| {
+            doc.node(s).is_some_and(|n| {
+                n.visible && !locked_in(doc, s) && {
+                    let inv = doc.world_transform(s).inverse();
+                    let lp = inv * pt;
+                    figcraft_doc::geometry::shape_path(n)
+                        .map_or_else(|| n.local_rect().contains(lp), |p| p.winding(lp) != 0 || n.local_rect().contains(lp))
+                }
+            })
+        })
+        .or_else(|| {
+            if doc.bounds_of(sel).is_some_and(|b| b.contains(pt)) {
+                sel.iter().copied().find(|&s| doc.node(s).is_some_and(|n| n.visible && !locked_in(doc, s)))
+            } else {
+                None
+            }
+        })
+}
+
+/// Pick between an ordinary hit and the selected-layer fallback, respecting paint order:
+/// the selected layer wins if it is in the selection or painted above the hit.
+fn resolve_target_or_fallback(doc: &Document, sel: &[NodeId], hit: Option<NodeId>, fallback: Option<NodeId>) -> Option<NodeId> {
+    match (hit, fallback) {
+        (Some(h), Some(s)) => {
+            if sel.contains(&h) || is_painted_above(doc, s, h) {
+                Some(s)
+            } else {
+                Some(h)
+            }
+        }
+        (Some(h), None) => Some(h),
+        (None, Some(s)) => Some(s),
+        (None, None) => None,
+    }
+}
+
 /// The stroke the Pencil draws: its colour and weight (the canvas previews it the same).
 pub const PENCIL_STROKE: (figcraft_color::Color, f64) = (figcraft_color::Color::BLACK, 2.0);
 
@@ -1052,20 +1138,9 @@ impl Session {
                 if leaf.and_then(|l| crate::widgets::target_at(&doc, l, ev.p())).is_some() {
                     cursor = Cursor::Pointer;
                 }
-                hover = label_at(&doc, page, &self.tool.labels, ev.p()).or_else(|| leaf.map(|leaf| select_target(&doc, leaf, &sel, ev.cmd))).or_else(
-                    || {
-                        if !sel.is_empty() && !ev.cmd {
-                            sel.iter().copied().find(|&s| {
-                                doc.node(s).is_some_and(|n| {
-                                    let inv = doc.world_transform(s).inverse();
-                                    n.local_rect().contains(inv * ev.p())
-                                })
-                            })
-                        } else {
-                            None
-                        }
-                    },
-                );
+                let hit_hover = leaf.map(|leaf| select_target(&doc, leaf, &sel, ev.cmd));
+                let fallback = if !ev.cmd { selected_fallback(&doc, &sel, ev.p()) } else { None };
+                hover = label_at(&doc, page, &self.tool.labels, ev.p()).or_else(|| resolve_target_or_fallback(&doc, &sel, hit_hover, fallback));
                 // Alt over a selected layer: a drag from here duplicates it.
                 if ev.alt && tool == ToolId::Move && hover.is_some_and(|h| sel.contains(&h) && !locked_in(&doc, h)) {
                     cursor = Cursor::Copy;
@@ -1204,31 +1279,12 @@ impl Session {
                     .node(leaf)
                     .is_some_and(|n| n.parent == Some(page) && n.kind.is_frame_like() && !n.children.is_empty() && !crate::widgets::is_widget(n))
         };
-        let target = label_at(&doc, page, &self.tool.labels, ev.p())
-            .or_else(|| {
-                self.hit(&doc, page, ev.p(), ev.tol() * 2.0)
-                    .filter(|leaf| ev.cmd || !board_background(*leaf))
-                    .map(|leaf| select_target(&doc, leaf, &sel, ev.cmd))
-            })
-            .or_else(|| {
-                // Clicking inside an already selected layer or the selection's box moves it,
-                // even when a shape has no fill (issue #910).
-                if !ev.shift && !ev.cmd && !sel.is_empty() {
-                    sel.iter()
-                        .copied()
-                        .find(|&s| {
-                            doc.node(s).is_some_and(|n| {
-                                let inv = doc.world_transform(s).inverse();
-                                let lp = inv * ev.p();
-                                figcraft_doc::geometry::shape_path(n)
-                                    .map_or_else(|| n.local_rect().contains(lp), |p| p.winding(lp) != 0 || n.local_rect().contains(lp))
-                            })
-                        })
-                        .or_else(|| if doc.bounds_of(&sel).is_some_and(|b| b.contains(ev.p())) { sel.first().copied() } else { None })
-                } else {
-                    None
-                }
-            });
+        let hit_target = self
+            .hit(&doc, page, ev.p(), ev.tol() * 2.0)
+            .filter(|leaf| ev.cmd || !board_background(*leaf))
+            .map(|leaf| select_target(&doc, leaf, &sel, ev.cmd));
+        let fallback = if !ev.shift && !ev.cmd { selected_fallback(&doc, &sel, ev.p()) } else { None };
+        let target = label_at(&doc, page, &self.tool.labels, ev.p()).or_else(|| resolve_target_or_fallback(&doc, &sel, hit_target, fallback));
         match target {
             Some(target) => {
                 // Clicking inside the current selection's box keeps it (drag them all).

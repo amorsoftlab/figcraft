@@ -380,3 +380,39 @@ fn drag_selected_unfilled_rectangle_moves_it() {
     let doc = s.doc().unwrap();
     assert_eq!(doc.world_bounds(r).unwrap().origin(), Point::new(140.0, 110.0), "unfilled selected rectangle moves when dragged from inside");
 }
+
+#[test]
+fn drag_selected_unfilled_rectangle_above_filled_background_moves_it() {
+    let mut s = Session::new();
+    let bg = id(&ex(&mut s, "shape.rectangle", json!({"x": 0, "y": 0, "width": 300, "height": 300})));
+    let r = id(&ex(&mut s, "shape.rectangle", json!({"x": 50, "y": 50, "width": 80, "height": 80})));
+    ex(&mut s, "object.removeFill", json!({"ids": [r]}));
+    ex(&mut s, "stroke.add", json!({"ids": [r]}));
+    ex(&mut s, "select.set", json!({"ids": [r]}));
+
+    s.pointer(&ev(PointerKind::Down, 70.0, 70.0, NONE)).unwrap();
+    s.pointer(&ev(PointerKind::Move, 100.0, 80.0, NONE)).unwrap();
+    s.pointer(&ev(PointerKind::Up, 100.0, 80.0, NONE)).unwrap();
+
+    let doc = s.doc().unwrap();
+    assert_eq!(doc.world_bounds(r).unwrap().origin(), Point::new(80.0, 60.0), "unfilled selected rectangle above background moves");
+    assert_eq!(doc.world_bounds(bg).unwrap().origin(), Point::new(0.0, 0.0), "background rectangle does not move");
+}
+
+#[test]
+fn filled_shape_above_selected_unfilled_shape_takes_hit() {
+    let mut s = Session::new();
+    let r = id(&ex(&mut s, "shape.rectangle", json!({"x": 50, "y": 50, "width": 80, "height": 80})));
+    ex(&mut s, "object.removeFill", json!({"ids": [r]}));
+    ex(&mut s, "stroke.add", json!({"ids": [r]}));
+    ex(&mut s, "select.set", json!({"ids": [r]}));
+
+    // Filled shape top created on top of r
+    let top = id(&ex(&mut s, "shape.rectangle", json!({"x": 60, "y": 60, "width": 40, "height": 40})));
+    ex(&mut s, "select.set", json!({"ids": [r]}));
+
+    s.pointer(&ev(PointerKind::Down, 70.0, 70.0, NONE)).unwrap();
+    s.pointer(&ev(PointerKind::Up, 70.0, 70.0, NONE)).unwrap();
+
+    assert_eq!(s.selection(), vec![top], "filled shape above selected unfilled shape takes the click");
+}
