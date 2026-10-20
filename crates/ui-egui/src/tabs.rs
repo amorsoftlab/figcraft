@@ -99,8 +99,8 @@ pub fn tab_bar(app: &mut FigApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     egui::Panel::top("tab_bar").exact_size(HEIGHT).frame(egui::Frame::NONE.fill(t.tab_bar)).show(ui, |ui| {
         let rect = ui.max_rect();
-        let buttons_w = if app.ui.title_bar == TitleBar::Custom { window_buttons(app, ui, rect) } else { 0.0 };
-        let mut x = rect.min.x + if app.ui.title_bar == TitleBar::Inset { 76.0 } else { 8.0 };
+        let buttons_w = if app.ui.title_bar == TitleBar::Custom && !app.ui.show_menu_bar { window_buttons(app, ui, rect) } else { 0.0 };
+        let mut x = rect.min.x + if app.ui.title_bar == TitleBar::Inset && !app.ui.show_menu_bar { 76.0 } else { 8.0 };
         // Home.
         let hr = Rect::from_min_size(pos2(x, rect.min.y), vec2(44.0, HEIGHT));
         let hresp = ui.interact(hr, ui.id().with("home"), Sense::click()).tip(tr("Home"));
@@ -421,7 +421,7 @@ pub fn live_mark(app: &FigApp, uid: u64) -> Option<bool> {
 }
 
 /// Minimise, maximise/restore and close at the right end of the title bar; returns their width.
-fn window_buttons(app: &mut FigApp, ui: &mut Ui, bar: Rect) -> f32 {
+pub(crate) fn window_buttons(app: &mut FigApp, ui: &mut Ui, bar: Rect) -> f32 {
     const W: f32 = 46.0;
     let t = Tokens::get(ui.ctx());
     let max = ui.input(|i| i.viewport().maximized.unwrap_or(false));

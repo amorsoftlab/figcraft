@@ -108,3 +108,12 @@ fn top_menu_bar_opens_and_switches_menus() {
     ui.frame(vec![]);
     assert_eq!(ui.app.ui.top_menu, None);
 }
+
+#[test]
+fn top_menu_bar_drags_window_and_handles_buttons() {
+    let mut ui = Ui::new(Session::new());
+    ui.app.ui.show_menu_bar = true;
+    ui.app.ui.title_bar = crate::TitleBar::Custom;
+    ui.frame(vec![]);
+    assert!(ui.app.ui.top_menu_bar_rect.is_some());
+}

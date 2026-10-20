@@ -5,12 +5,12 @@ use egui::{Align2, Color32, CornerRadius, Id, Rect, Sense, Stroke, StrokeKind, U
 use figcraft_engine::catalog::{MENU, SEP};
 use serde_json::json;
 
-use crate::FigApp;
 use crate::a11y::{self, Tip};
 use crate::i18n::{self, tr, tr_noop, trf, trn};
 use crate::icons::{self, Icon};
 use crate::theme::{Tokens, regular};
 use crate::toolbar::pretty_shortcut;
+use crate::{FigApp, TitleBar};
 
 /// Commands the UI layer implements itself (dialogs and platform actions).
 pub const UI_COMMANDS: &[&str] = &[
@@ -772,7 +772,11 @@ pub fn top_menu_bar(app: &mut FigApp, ui: &mut Ui) {
             let rect = ui.max_rect();
             app.ui.top_menu_bar_rect = Some(rect);
 
-            let mut x = rect.min.x + 8.0;
+            // On Windows (TitleBar::Custom), window control buttons are at the right end of the top-most bar.
+            let buttons_w = if app.ui.title_bar == TitleBar::Custom { crate::tabs::window_buttons(app, ui, rect) } else { 0.0 };
+
+            // On macOS (TitleBar::Inset), leave room for traffic lights on the left.
+            let mut x = rect.min.x + if app.ui.title_bar == TitleBar::Inset { 76.0 } else { 8.0 };
 
             // Logo button on far left: clicking goes to/toggles Home.
             let logo_r = Rect::from_center_size(pos2(x + 12.0, rect.center().y), vec2(24.0, 24.0));
@@ -821,10 +825,13 @@ pub fn top_menu_bar(app: &mut FigApp, ui: &mut Ui) {
                 x += btn_w + 2.0;
             }
 
-            // Right side: Quick actions search bar button.
-            let right_x = rect.max.x - 148.0;
-            if right_x > x + 20.0 {
-                let act_r = Rect::from_min_size(pos2(right_x, rect.min.y + 3.0), vec2(140.0, BAR_HEIGHT - 6.0));
+            // Quick actions search bar button (to the left of window buttons).
+            let act_w = 140.0;
+            let act_right = rect.max.x - buttons_w - 8.0;
+            let act_left = act_right - act_w;
+            let has_actions = act_left > x + 30.0;
+            if has_actions {
+                let act_r = Rect::from_min_size(pos2(act_left, rect.min.y + 3.0), vec2(act_w, BAR_HEIGHT - 6.0));
                 let act_resp = ui.interact(act_r, ui.id().with("menu_bar_actions"), Sense::click()).tip(tr("Actions…"));
                 if act_resp.hovered() {
                     ui.painter().rect_filled(act_r, CornerRadius::same(5), t.hover);
@@ -847,6 +854,20 @@ pub fn top_menu_bar(app: &mut FigApp, ui: &mut Ui) {
                 );
                 if act_resp.clicked() {
                     set_palette(&mut app.ui, true);
+                }
+            }
+
+            // The free space between menus and the right side (Actions / Window buttons) is draggable.
+            let drag_max_x = if has_actions { act_left - 8.0 } else { rect.max.x - buttons_w - 8.0 };
+            if app.ui.title_bar != TitleBar::Native && x + 10.0 < drag_max_x {
+                let free = Rect::from_min_max(pos2(x + 6.0, rect.min.y), pos2(drag_max_x, rect.max.y));
+                let drag = ui.interact(free, ui.id().with("menu_bar_drag"), Sense::click_and_drag());
+                if drag.drag_started() {
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
+                }
+                if drag.double_clicked() {
+                    let max = ui.input(|i| i.viewport().maximized.unwrap_or(false));
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(!max));
                 }
             }
         },
