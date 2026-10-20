@@ -1041,7 +1041,8 @@ fn highlight_color_menu(app: &mut FigApp, ui: &mut Ui, ids: &[figcraft_doc::Node
         Reset,
     }
     let doc_uid = app.session.ds().ok().map(|ds| ds.uid).unwrap_or(0);
-    let first_id = ids.first().copied();
+    let first_id =
+        ids.iter().copied().find(|id| app.session.doc().ok().is_some_and(|doc| is_main_level_node(doc, *id))).or_else(|| ids.first().copied());
     let first_is_main = first_id.is_some_and(|id| app.session.doc().ok().is_some_and(|doc| is_main_level_node(doc, id)));
     let current_custom = first_id.and_then(|id| app.ui.layer_colors.get(&(doc_uid, id)).copied()).or(if first_is_main {
         app.ui.main_group_color.get(&doc_uid).copied()
