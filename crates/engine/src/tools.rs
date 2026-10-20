@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use figcraft_doc::geometry::select_target;
 use figcraft_doc::*;
-use figcraft_geom::{Affine, Point, Rect, Vec2};
+use figcraft_geom::{Affine, Point, Rect, Shape, Vec2};
 use serde::Serialize;
 use serde_json::json;
 
@@ -1052,7 +1052,20 @@ impl Session {
                 if leaf.and_then(|l| crate::widgets::target_at(&doc, l, ev.p())).is_some() {
                     cursor = Cursor::Pointer;
                 }
-                hover = label_at(&doc, page, &self.tool.labels, ev.p()).or_else(|| leaf.map(|leaf| select_target(&doc, leaf, &sel, ev.cmd)));
+                hover = label_at(&doc, page, &self.tool.labels, ev.p()).or_else(|| leaf.map(|leaf| select_target(&doc, leaf, &sel, ev.cmd))).or_else(
+                    || {
+                        if !sel.is_empty() && !ev.cmd {
+                            sel.iter().copied().find(|&s| {
+                                doc.node(s).is_some_and(|n| {
+                                    let inv = doc.world_transform(s).inverse();
+                                    n.local_rect().contains(inv * ev.p())
+                                })
+                            })
+                        } else {
+                            None
+                        }
+                    },
+                );
                 // Alt over a selected layer: a drag from here duplicates it.
                 if ev.alt && tool == ToolId::Move && hover.is_some_and(|h| sel.contains(&h) && !locked_in(&doc, h)) {
                     cursor = Cursor::Copy;
@@ -1191,15 +1204,35 @@ impl Session {
                     .node(leaf)
                     .is_some_and(|n| n.parent == Some(page) && n.kind.is_frame_like() && !n.children.is_empty() && !crate::widgets::is_widget(n))
         };
-        let target = label_at(&doc, page, &self.tool.labels, ev.p()).or_else(|| {
-            self.hit(&doc, page, ev.p(), ev.tol() * 2.0)
-                .filter(|leaf| ev.cmd || !board_background(*leaf))
-                .map(|leaf| select_target(&doc, leaf, &sel, ev.cmd))
-        });
+        let target = label_at(&doc, page, &self.tool.labels, ev.p())
+            .or_else(|| {
+                self.hit(&doc, page, ev.p(), ev.tol() * 2.0)
+                    .filter(|leaf| ev.cmd || !board_background(*leaf))
+                    .map(|leaf| select_target(&doc, leaf, &sel, ev.cmd))
+            })
+            .or_else(|| {
+                // Clicking inside an already selected layer or the selection's box moves it,
+                // even when a shape has no fill (issue #910).
+                if !ev.shift && !ev.cmd && !sel.is_empty() {
+                    sel.iter()
+                        .copied()
+                        .find(|&s| {
+                            doc.node(s).is_some_and(|n| {
+                                let inv = doc.world_transform(s).inverse();
+                                let lp = inv * ev.p();
+                                figcraft_doc::geometry::shape_path(n)
+                                    .map_or_else(|| n.local_rect().contains(lp), |p| p.winding(lp) != 0 || n.local_rect().contains(lp))
+                            })
+                        })
+                        .or_else(|| if doc.bounds_of(&sel).is_some_and(|b| b.contains(ev.p())) { sel.first().copied() } else { None })
+                } else {
+                    None
+                }
+            });
         match target {
             Some(target) => {
                 // Clicking inside the current selection's box keeps it (drag them all).
-                let in_sel_box = sel.len() > 1 && doc.bounds_of(&sel).is_some_and(|b| b.contains(ev.p())) && !ev.shift;
+                let in_sel_box = !sel.is_empty() && doc.bounds_of(&sel).is_some_and(|b| b.contains(ev.p())) && !ev.shift;
                 // Shift on a selected layer takes it out on release if the press doesn't become a
                 // drag; a drag moves the selection with it. Where no drag can start, it goes now.
                 let deselect = (ev.shift && sel.contains(&target)).then_some(target);

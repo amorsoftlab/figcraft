@@ -364,3 +364,19 @@ fn shift_click_takes_a_layer_out_where_nothing_can_move() {
     s.pointer(&ev(PointerKind::Up, 520.0, 20.0, SHIFT)).unwrap();
     assert_eq!(s.selection(), vec![k.empty], "Shift-click still takes the layer out");
 }
+
+#[test]
+fn drag_selected_unfilled_rectangle_moves_it() {
+    let mut s = Session::new();
+    let r = id(&ex(&mut s, "shape.rectangle", json!({"x": 100, "y": 100, "width": 80, "height": 80})));
+    ex(&mut s, "object.removeFill", json!({"ids": [r]}));
+    ex(&mut s, "stroke.add", json!({"ids": [r]}));
+    ex(&mut s, "select.set", json!({"ids": [r]}));
+
+    s.pointer(&ev(PointerKind::Down, 140.0, 140.0, NONE)).unwrap();
+    s.pointer(&ev(PointerKind::Move, 180.0, 150.0, NONE)).unwrap();
+    s.pointer(&ev(PointerKind::Up, 180.0, 150.0, NONE)).unwrap();
+
+    let doc = s.doc().unwrap();
+    assert_eq!(doc.world_bounds(r).unwrap().origin(), Point::new(140.0, 110.0), "unfilled selected rectangle moves when dragged from inside");
+}
