@@ -1028,37 +1028,36 @@ fn color_item(ui: &mut Ui, label: &str, color: Color32, checked: bool, t: &Token
 /// The context menu's "Highlight color" submenu to customize layer / main frame colors.
 fn highlight_color_menu(app: &mut FigApp, ui: &mut Ui, ids: &[figcraft_doc::NodeId], t: &Tokens) -> bool {
     enum Action {
-        Set(Color32),
-        ApplyAll(Color32),
+        Set(Option<Color32>),
+        ApplyAll(Option<Color32>),
         Reset,
     }
     let first_id = ids.first().copied();
-    let current_col =
-        first_id.and_then(|id| app.ui.layer_colors.get(&id).copied()).unwrap_or_else(|| app.ui.main_group_color.unwrap_or(t.accent_text));
+    let current_custom = first_id.and_then(|id| app.ui.layer_colors.get(&id).copied()).or(app.ui.main_group_color);
 
     let picked = submenu_at(ui, Id::new("ctx_highlight_color"), "highlight_color", tr("Highlight color"), 4.0, true, t, |ui| {
         let mut act = None;
-        let colors = [
-            (tr("Sky Blue (Default)"), t.accent_text),
-            (tr("Blue"), Color32::from_rgb(0x3B, 0x82, 0xF6)),
-            (tr("Purple"), Color32::from_rgb(0xA8, 0x55, 0xF7)),
-            (tr("Pink"), Color32::from_rgb(0xEC, 0x48, 0x99)),
-            (tr("Red"), Color32::from_rgb(0xEF, 0x44, 0x44)),
-            (tr("Orange"), Color32::from_rgb(0xF9, 0x73, 0x16)),
-            (tr("Amber"), Color32::from_rgb(0xF5, 0x9E, 0x0B)),
-            (tr("Green"), Color32::from_rgb(0x10, 0xB9, 0x81)),
-            (tr("Teal"), Color32::from_rgb(0x14, 0xB8, 0xA6)),
-            (tr("Gray"), Color32::from_rgb(0x94, 0xA3, 0xB8)),
+        let colors: [(&str, Option<Color32>, Color32); 10] = [
+            (tr("Default"), None, t.accent_text),
+            (tr("Blue"), Some(Color32::from_rgb(0x3B, 0x82, 0xF6)), Color32::from_rgb(0x3B, 0x82, 0xF6)),
+            (tr("Purple"), Some(Color32::from_rgb(0xA8, 0x55, 0xF7)), Color32::from_rgb(0xA8, 0x55, 0xF7)),
+            (tr("Pink"), Some(Color32::from_rgb(0xEC, 0x48, 0x99)), Color32::from_rgb(0xEC, 0x48, 0x99)),
+            (tr("Red"), Some(Color32::from_rgb(0xEF, 0x44, 0x44)), Color32::from_rgb(0xEF, 0x44, 0x44)),
+            (tr("Orange"), Some(Color32::from_rgb(0xF9, 0x73, 0x16)), Color32::from_rgb(0xF9, 0x73, 0x16)),
+            (tr("Amber"), Some(Color32::from_rgb(0xF5, 0x9E, 0x0B)), Color32::from_rgb(0xF5, 0x9E, 0x0B)),
+            (tr("Green"), Some(Color32::from_rgb(0x10, 0xB9, 0x81)), Color32::from_rgb(0x10, 0xB9, 0x81)),
+            (tr("Teal"), Some(Color32::from_rgb(0x14, 0xB8, 0xA6)), Color32::from_rgb(0x14, 0xB8, 0xA6)),
+            (tr("Gray"), Some(Color32::from_rgb(0x94, 0xA3, 0xB8)), Color32::from_rgb(0x94, 0xA3, 0xB8)),
         ];
-        for (name, col) in colors {
-            let is_checked = current_col == col;
-            if color_item(ui, &name, col, is_checked, t) {
-                act = Some(Action::Set(col));
+        for (name, val, swatch_col) in colors {
+            let is_checked = current_custom == val;
+            if color_item(ui, name, swatch_col, is_checked, t) {
+                act = Some(Action::Set(val));
             }
         }
         separator(ui);
         if item(ui, tr("Apply to all main frames"), "", true, false, t) {
-            act = Some(Action::ApplyAll(current_col));
+            act = Some(Action::ApplyAll(current_custom));
         }
         if item(ui, tr("Reset to default"), "", true, false, t) {
             act = Some(Action::Reset);
@@ -1068,13 +1067,17 @@ fn highlight_color_menu(app: &mut FigApp, ui: &mut Ui, ids: &[figcraft_doc::Node
 
     if let Some(act) = picked {
         match act {
-            Action::Set(col) => {
+            Action::Set(val) => {
                 for id in ids {
-                    app.ui.layer_colors.insert(*id, col);
+                    if let Some(col) = val {
+                        app.ui.layer_colors.insert(*id, col);
+                    } else {
+                        app.ui.layer_colors.remove(id);
+                    }
                 }
             }
-            Action::ApplyAll(col) => {
-                app.ui.main_group_color = Some(col);
+            Action::ApplyAll(val) => {
+                app.ui.main_group_color = val;
                 if let Ok(doc) = app.session.doc() {
                     app.ui.layer_colors.retain(|id, _| {
                         let is_main = doc.node(*id).is_some_and(|n| {
@@ -1091,7 +1094,15 @@ fn highlight_color_menu(app: &mut FigApp, ui: &mut Ui, ids: &[figcraft_doc::Node
                 for id in ids {
                     app.ui.layer_colors.remove(id);
                 }
-                app.ui.main_group_color = None;
+                let touches_main = app.session.doc().ok().is_some_and(|doc| {
+                    ids.iter().filter_map(|i| doc.node(*i)).any(|n| {
+                        n.parent.and_then(|p| doc.node(p)).is_some_and(|p| p.is_page())
+                            && (n.kind.is_frame_like() || matches!(n.kind, figcraft_doc::NodeKind::Section { .. } | figcraft_doc::NodeKind::Group))
+                    })
+                });
+                if touches_main {
+                    app.ui.main_group_color = None;
+                }
             }
         }
         true
