@@ -120,10 +120,10 @@ impl Tokens {
             tab_bar: Color32::from_rgb(0xE8, 0xE8, 0xE8),
             tab_active: Color32::from_rgb(0xFF, 0xFF, 0xFF),
             shadow: Color32::from_black_alpha(40),
-            menu: Color32::from_rgb(0x1E, 0x1E, 0x1E),
-            menu_text: Color32::from_rgb(0xFF, 0xFF, 0xFF),
-            menu_hover: ACCENT,
-            menu_dim: Color32::from_rgb(0x9A, 0x9A, 0x9A),
+            menu: Color32::from_rgb(0xFF, 0xFF, 0xFF),
+            menu_text: Color32::from_rgb(0x1E, 0x1E, 0x1E),
+            menu_hover: Color32::from_rgb(0xF5, 0xF5, 0xF5),
+            menu_dim: Color32::from_rgb(0x8A, 0x8A, 0x8A),
             focus: Color32::from_rgb(0x00, 0x7A, 0x56),
         }
     }
@@ -495,6 +495,22 @@ mod tests {
                 let ratio = c(v.selection.stroke.color).contrast(c(highlight));
                 assert!(ratio >= 3.0, "{theme}: selected text on {highlight:?} is {ratio:.2}:1");
             }
+        }
+    }
+
+    #[test]
+    fn menu_text_and_dim_stay_readable_in_both_themes() {
+        for t in [Tokens::light(), Tokens::dark()] {
+            let theme = if t.dark { "dark" } else { "light" };
+            // Normal menu text on menu surface and on hovered row: at least 4.5:1 (WCAG AA).
+            let text_on_menu = c(t.menu_text).contrast(c(t.menu));
+            assert!(text_on_menu >= 4.5, "{theme}: menu text on menu is {text_on_menu:.2}:1");
+            let text_on_hover = c(t.menu_text).contrast(c(t.menu_hover));
+            assert!(text_on_hover >= 4.5, "{theme}: menu text on hover is {text_on_hover:.2}:1");
+
+            // Disabled menu text / shortcut dim text on menu surface: at least 3.0:1.
+            let dim_on_menu = c(t.menu_dim).contrast(c(t.menu));
+            assert!(dim_on_menu >= 3.0, "{theme}: menu dim text on menu is {dim_on_menu:.2}:1");
         }
     }
 

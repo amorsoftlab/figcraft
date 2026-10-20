@@ -423,6 +423,9 @@ fn flyout(app: &mut FigApp, ui: &mut Ui, g: &Group, bottom_left: egui::Pos2) {
     egui::Area::new(flyout_id(g.key)).fixed_pos(pos2(bottom_left.x, bottom_left.y - h)).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
         let (rect, _) = ui.allocate_exact_size(vec2(w, h), Sense::hover());
         ui.painter().rect_filled(rect, CornerRadius::same(13), t.menu);
+        if !t.dark {
+            ui.painter().rect_stroke(rect, CornerRadius::same(13), Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+        }
         let mut y = rect.min.y + 8.0;
         for (tid, icon) in g.tools {
             let r = Rect::from_min_size(pos2(rect.min.x + 8.0, y), vec2(w - 16.0, item_h));

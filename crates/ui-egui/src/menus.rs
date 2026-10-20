@@ -639,7 +639,9 @@ fn submenu_at<R>(
 pub(crate) fn separator(ui: &mut Ui) {
     ui.add_space(4.0);
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 1.0), Sense::hover());
-    ui.painter().line_segment([r.left_center(), r.right_center()], Stroke::new(1.0, Color32::from_white_alpha(30)));
+    let t = Tokens::get(ui.ctx());
+    let col = if t.dark { Color32::from_white_alpha(30) } else { t.border };
+    ui.painter().line_segment([r.left_center(), r.right_center()], Stroke::new(1.0, col));
     ui.add_space(4.0);
 }
 
@@ -649,7 +651,8 @@ fn menu_frame<R>(ui: &mut Ui, t: &Tokens, at: At, add: impl FnOnce(&mut Ui) -> R
         .fill(t.menu)
         .corner_radius(CornerRadius::same(13))
         .inner_margin(egui::Margin::same(8))
-        .shadow(egui::Shadow { offset: [0, 4], blur: 16, spread: 0, color: Color32::from_black_alpha(60) })
+        .stroke(if t.dark { Stroke::NONE } else { Stroke::new(1.0, t.border) })
+        .shadow(egui::Shadow { offset: [0, 4], blur: 16, spread: 0, color: Color32::from_black_alpha(if t.dark { 60 } else { 35 }) })
         .show(ui, |ui| {
             // As wide as its widest row asked for (labels run longer in some languages).
             let w = ui.data(|d| d.get_temp::<f32>(width_key(ui))).unwrap_or(0.0).max(MENU_W);
