@@ -712,6 +712,7 @@ fn layers(app: &mut FigApp, ui: &mut Ui) {
         search_field(ui, &t, w, search_id, tr("Find layers"), &mut app.ui.layer_filter, &mut app.ui.layer_search, sresp.clicked());
     }
     let Ok(ds) = app.session.ds() else { return };
+    let doc_uid = ds.uid;
     let doc = ds.doc.clone();
     let page = ds.page;
     let sel = ds.selection.clone();
@@ -851,11 +852,13 @@ fn layers(app: &mut FigApp, ui: &mut Ui) {
             if over {
                 hovered_row = Some(row.id);
             }
-            let is_main_group = row.depth == 0
-                && doc.node(n.parent.unwrap_or(page)).is_some_and(|p| p.is_page())
-                && (n.kind.is_frame_like() || matches!(n.kind, NodeKind::Section { .. } | NodeKind::Group));
-            let custom_color =
-                app.ui.layer_colors.get(&row.id).copied().or_else(|| is_main_group.then(|| app.ui.main_group_color.unwrap_or(t.accent_text)));
+            let is_main_group = crate::menus::is_main_level_node(&doc, row.id);
+            let custom_color = app
+                .ui
+                .layer_colors
+                .get(&(doc_uid, row.id))
+                .copied()
+                .or_else(|| is_main_group.then(|| app.ui.main_group_color.get(&doc_uid).copied().unwrap_or(t.accent_text)));
             let x0 = row_x0(rr, row.depth);
             // Expand triangle.
             if row.has_kids {
@@ -875,7 +878,7 @@ fn layers(app: &mut FigApp, ui: &mut Ui) {
             }
             let icon = node_icon(&doc, row.id);
             let shown = n.visible && !row.dimmed;
-            let icon_col = if let Some(col) = app.ui.layer_colors.get(&row.id).copied() {
+            let icon_col = if let Some(col) = app.ui.layer_colors.get(&(doc_uid, row.id)).copied() {
                 col.gamma_multiply(if shown { 1.0 } else { 0.5 })
             } else if is_comp || icon == Icon::Slot {
                 COMPONENT.gamma_multiply(if shown { 1.0 } else { 0.5 })
@@ -893,7 +896,7 @@ fn layers(app: &mut FigApp, ui: &mut Ui) {
                     rename_done = Some((row.id, new));
                 }
             } else {
-                let col = if let Some(col) = app.ui.layer_colors.get(&row.id).copied() {
+                let col = if let Some(col) = app.ui.layer_colors.get(&(doc_uid, row.id)).copied() {
                     col.gamma_multiply(if shown { 1.0 } else { 0.5 })
                 } else if is_comp {
                     COMPONENT.gamma_multiply(if shown { 1.0 } else { 0.5 })
