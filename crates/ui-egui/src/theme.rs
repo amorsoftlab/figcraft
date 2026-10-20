@@ -299,6 +299,9 @@ pub fn install_fonts(ctx: &Context, system: bool, cjk: u8) {
 
     let (regular_data, semibold_data) = if let Some(r) = craft_reg {
         (Some(FontData::from_static(r)), craft_semi.map(FontData::from_static))
+    } else if let Some(r) = read_system_file("segoeui.ttf") {
+        let s = read_system_file("seguisb.ttf").or_else(|| read_system_file("segoeuib.ttf"));
+        (Some(r), s)
     } else if let Some(r) = read_system_file("SourceSansPro-Regular.ttf").or_else(|| read_system_file("SourceSansPro-Regular.otf")) {
         let s = read_system_file("SourceSansPro-SemiBold.ttf")
             .or_else(|| read_system_file("SourceSansPro-Semibold.otf"))
@@ -441,8 +444,8 @@ pub fn font_data(face: &figcraft_text::Face) -> FontData {
     data
 }
 
-/// Font size boost applied on desktop for improved legibility.
-pub const DESKTOP_FONT_BOOST: f32 = 2.5;
+/// Font size boost applied on desktop for improved legibility (kept integer to avoid subpixel blur).
+pub const DESKTOP_FONT_BOOST: f32 = 1.0;
 
 pub fn semibold(size: f32) -> FontId {
     let boost = if cfg!(test) { 0.0 } else { DESKTOP_FONT_BOOST };
