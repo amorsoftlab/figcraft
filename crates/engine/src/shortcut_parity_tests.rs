@@ -93,6 +93,7 @@ static ROWS: &[Row] = &[
         "conflict: the documentation also gives Ctrl+Alt+P to pixel preview on Windows; pixel preview keeps it, the plugin takes Ctrl+Alt+Shift+P"),
     pin(Essential, "view.fullscreen", &["Ctrl+Cmd+F"], &["F11"]),
     pin(Essential, "app.preferences", &["Cmd+,"], &[]),
+    pin(Essential, "ai.open", &["Cmd+J"], &[]),
     pin(Essential, "file.new", &["Cmd+N"], &[]).reserved(BROWSER_TAB),
     pin(Essential, "file.open", &["Cmd+O"], &[]),
     pin(Essential, "file.save", &["Cmd+S"], &[]),
@@ -201,7 +202,6 @@ static ROWS: &[Row] = &[
     pin(Shape, "vector.flatten", &["Cmd+E"], &[]),
     pin(Shape, "vector.outlineStroke", &["Alt+Cmd+O"], &[]),
     pin(Shape, "object.swapFillStroke", &["Shift+X"], &[]),
-    pin(Shape, "vector.join", &["Cmd+J"], &[]),
     pin(Shape, "vector.smoothJoin", &["Shift+Cmd+J"], &[]),
     pin(Shape, "vector.deleteHeal", &["Shift+Delete"], &[]),
     // Selection

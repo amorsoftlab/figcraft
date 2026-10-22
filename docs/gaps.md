@@ -418,10 +418,20 @@ No alpha blockers: the alpha gate in [`roadmap.md`](roadmap.md#alpha-gate) passe
   its environment), an original code-drawn AI toolbar mark, and `ai.applyDesign`: a bounded,
   provider-neutral design IR that creates native editable frames, rectangles, ellipses and text as
   one undo step. `ai.open` takes an interface to the setup without opening one for scripts.
-- **Missing:** the asynchronous Stitch adapter and prompt/results UI; richer generated-layer IR;
+- **Landed (2026-10-22):** a floating prompt bar above the toolbar opens from the Sparkle button
+  or Cmd/Ctrl+J (vector edit keeps point joining), accepts a prompt and Mobile/Desktop/Tablet, and
+  shows a non-blocking generation state. The desktop Stitch MCP adapter reads `STITCH_API_KEY`
+  only from the process environment, uses the optional saved Stitch project or creates one, never
+  retries a mutating generation after an uncertain outcome, caps MCP/export responses, requires
+  HTTPS, and converts a returned editable export through the `.fig` importer to the bounded
+  `ai.applyDesign` IR. No editable export means no canvas mutation—screenshots are not flattened
+  into the file. The browser build reports the provider unavailable.
+- **Missing:** a results/variants chooser and recovery/polling after an uncertain generation;
+  live credential-backed interoperability QA; richer generated-layer IR (vectors, images,
+  gradients, auto layout and effects);
   Figma AI behaviours (first draft, rename layers, remove background, image generation and
   editing, visual search). Make remains a separate-product scope decision.
-- **Estimate:** 30–60 h with openly licensed local models. **Owner decision needed.**
+- **Estimate:** 24–50 h with openly licensed local models. **Owner decision needed.**
 
 ### 20. Mobile apps
 - **Missing:** Figma's iOS and Android apps view and comment on files and mirror prototypes.
@@ -450,6 +460,7 @@ No alpha blockers: the alpha gate in [`roadmap.md`](roadmap.md#alpha-gate) passe
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-22 | minor | Gap 19: floating prompt/device UI and an environment-credentialled, optional-project Google Stitch MCP adapter landed; editable exports become bounded native IR and screenshots are refused as a fallback. Live provider QA, results/variants, recovery and richer IR remain. Estimate 30–60 h → 24–50 h. |
 | 2026-10-17 | minor | The 2026-10-17 landings. Gap 1: a new Landed entry (community batches #727 and #728, then #745: instance identity and cached library components, overrides by key, text style precedence, grid track sizes, slot content, labels of connectors saved with their path, skip ink, paragraph options, list start numbers, vertical trim, per-point stroke joins, text on a path, image adjustments, images in the message, instance layers' size and resizing overrides, Hug where nothing is recorded; budgets from the file's size; the import report; a `.fig` copy from Save as; paste from another design app), its Missing list cut to what is still left, and the wrong "whether other apps open its files is unknown" replaced by what was checked; all on synthetic files, so the beta blocker and hours stand. Gap 2: server limits, log recovery and web join links in the evidence. Gap 4: menus, the Actions palette and the editor fixes (#733, #735, #736, #729), then Selection colors and smart-selection spacing (#753) landed, none compared side by side. Gap 5: catalog counts re-measured (2,272 entries; drafts at 95–99%; Indonesian, Czech, Turkish and Swedish listed). Gap 8: the Linux and BSD clipboard changes and Wayland window controls, not run there by the maintainers. Ranking and hours unchanged |
 | 2026-10-15 | minor | Gap 7: bounded canvas overscan for smoother panning. Estimates and ranking unchanged. |
 | 2026-10-14 | minor | Russian catalog (M9), reviewed and approved by VanTan: all 2,165 current entries, Русский in Preferences and regional ru tags. Russian integer plurals use one/few/many; contributor display name VanTan added. Existing estimates unchanged. |

@@ -4,6 +4,8 @@
 //! commands. The provider never receives a privileged engine handle, and applying a result is one
 //! undo step. Network access and credentials belong to the swappable UI/provider adapter.
 
+use figcraft_color::Paint;
+use figcraft_doc::{Document, Node, NodeId, NodeKind};
 use serde_json::{Map, Value, json};
 
 use crate::cmd::CommandSpec;
@@ -15,6 +17,13 @@ const MAX_NODES: usize = 500;
 const MAX_DEPTH: usize = 32;
 const MAX_TEXT_CHARS: usize = 20_000;
 const MAX_SIZE: f64 = 100_000.0;
+
+/// A provider's editable document reduced to the deliberately small [`ai.applyDesign`](CMD) IR.
+/// Unsupported imported layer kinds are omitted and reported rather than flattened to pixels.
+pub struct ImportedDesign {
+    pub ir: Value,
+    pub warnings: Vec<String>,
+}
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
@@ -60,6 +69,98 @@ fn clean_text(value: Option<String>, field: &str, max: usize) -> Result<String> 
         return Err(bad(CMD, format!("`{field}` is too long or contains a null character")));
     }
     Ok(value)
+}
+
+fn solid(paints: &[Paint]) -> Option<String> {
+    paints.iter().find(|p| p.visible).and_then(Paint::solid_color).map(|c| c.to_css_hex())
+}
+
+fn node_props(n: &Node) -> Map<String, Value> {
+    let mut props = Map::new();
+    if let Some(fill) = solid(&n.fills) {
+        props.insert("fill".into(), json!(fill));
+    }
+    if let Some(stroke) = solid(&n.strokes) {
+        props.insert("stroke".into(), json!(stroke));
+        props.insert("strokeWeight".into(), json!(n.stroke.weight));
+    }
+    if n.opacity < 1.0 {
+        props.insert("opacity".into(), json!(f64::from(n.opacity) * 100.0));
+    }
+    if n.corners.radii.iter().any(|r| *r > 0.0) {
+        props.insert("cornerRadius".into(), json!(n.corners.radii));
+    }
+    if n.clip {
+        props.insert("clipsContent".into(), json!(true));
+    }
+    if let NodeKind::Text(text) = &n.kind {
+        props.insert("fontFamily".into(), json!(text.style.font_family));
+        props.insert("fontStyle".into(), json!(text.style.font_style));
+        props.insert("fontSize".into(), json!(text.style.font_size));
+    }
+    props
+}
+
+fn import_node(doc: &Document, id: NodeId, count: &mut usize, warnings: &mut Vec<String>) -> Option<Value> {
+    if *count >= MAX_NODES {
+        if !warnings.iter().any(|w| w.contains("layer limit")) {
+            warnings.push(format!("generated design exceeded the {MAX_NODES}-layer limit; later layers were omitted"));
+        }
+        return None;
+    }
+    let n = doc.node(id)?;
+    let kind = match n.kind {
+        NodeKind::Frame
+        | NodeKind::Group
+        | NodeKind::Section { .. }
+        | NodeKind::Component { .. }
+        | NodeKind::ComponentSet { .. }
+        | NodeKind::Instance { .. } => "frame",
+        NodeKind::Rectangle => "rectangle",
+        NodeKind::Ellipse { .. } => "ellipse",
+        NodeKind::Text(_) => "text",
+        _ => {
+            warnings.push(format!("unsupported generated layer `{}` ({}) was omitted", n.name, n.kind.type_name()));
+            return None;
+        }
+    };
+    *count += 1;
+    let c = n.transform.as_coeffs();
+    if (c[0] - 1.0).abs() > 1e-6 || c[1].abs() > 1e-6 || c[2].abs() > 1e-6 || (c[3] - 1.0).abs() > 1e-6 {
+        warnings.push(format!("generated layer `{}` had a rotated or scaled transform; its editable approximation keeps position and size", n.name));
+    }
+    let mut out = json!({
+        "type": kind,
+        "name": n.name,
+        "x": c[4],
+        "y": c[5],
+        "width": n.width.max(1.0),
+        "height": n.height.max(1.0),
+        "props": node_props(n),
+    });
+    if let NodeKind::Text(text) = &n.kind {
+        out["text"] = json!(text.characters);
+    }
+    if kind == "frame" {
+        out["children"] = Value::Array(n.children.iter().filter_map(|child| import_node(doc, *child, count, warnings)).collect());
+    }
+    Some(out)
+}
+
+/// Convert the first page of an imported editable provider export to the bounded native AI IR.
+/// A single top-level frame becomes the IR root; otherwise the page's layers become root children.
+pub fn document_to_ir(doc: &Document, fallback_name: &str) -> Result<ImportedDesign> {
+    let page_id = doc.pages.first().copied().ok_or_else(|| bad(CMD, "the generated design has no page"))?;
+    let page = doc.node(page_id).ok_or_else(|| bad(CMD, "the generated design page is missing"))?;
+    let sole = (page.children.len() == 1).then(|| page.children[0]).and_then(|id| doc.node(id));
+    let (name, width, height, props, children): (String, f64, f64, Map<String, Value>, &[NodeId]) = match sole {
+        Some(n) if n.kind.is_container() => (n.name.clone(), n.width, n.height, node_props(n), &n.children),
+        _ => (fallback_name.to_string(), 390.0, 844.0, Map::new(), &page.children),
+    };
+    let mut warnings = Vec::new();
+    let mut count = 0;
+    let nodes = children.iter().filter_map(|id| import_node(doc, *id, &mut count, &mut warnings)).collect::<Vec<_>>();
+    Ok(ImportedDesign { ir: json!({"name": name, "width": width.max(1.0), "height": height.max(1.0), "props": props, "nodes": nodes}), warnings })
 }
 
 fn add_nodes(nodes: &[Value], parent_step: usize, depth: usize, commands: &mut Vec<(String, Value)>) -> Result<()> {
@@ -125,6 +226,12 @@ fn apply(s: &mut Session, p: &Value) -> Result<Value> {
         "select": true,
         "props": {"clipsContent": true}
     });
+    if let Some(Value::Object(props)) = get(p, "props") {
+        root["props"] = Value::Object(props.clone());
+        root["props"]["clipsContent"] = json!(true);
+    } else if get(p, "props").is_some() {
+        return Err(bad(CMD, "`props` must be an object"));
+    }
     if let Some(x) = num(p, "x") {
         root["x"] = json!(finite_coord(Some(x), "x")?);
     }
@@ -185,5 +292,28 @@ mod tests {
         assert!(s.execute(super::CMD, &json!({"width": 390, "height": 844, "nodes": [{"type": "video"}]})).is_err());
         assert!(s.execute(super::CMD, &json!({"width": 100_001, "height": 844})).is_err());
         assert!(s.execute(super::CMD, &json!({"nodes": [{"type": "text", "text": "x", "children": [{}]}]})).is_err());
+    }
+
+    #[test]
+    fn imported_editable_document_becomes_provider_neutral_ir() {
+        let mut source = Session::new();
+        let frame = source
+            .execute("node.create", &json!({"type":"frame","name":"Home","x":20,"y":30,"width":390,"height":844,"props":{"fill":"#F5F5F5"}}))
+            .unwrap()["id"]
+            .as_u64()
+            .map(figcraft_doc::NodeId)
+            .unwrap();
+        source.execute("text.create", &json!({"parent":frame,"x":24,"y":40,"text":"Welcome","props":{"fontSize":28,"fill":"#111111"}})).unwrap();
+        let converted = super::document_to_ir(source.doc().unwrap(), "Generated").unwrap();
+        assert_eq!(converted.ir["name"], "Home");
+        assert_eq!(converted.ir["width"], 390.0);
+        assert_eq!(converted.ir["nodes"][0]["type"], "text");
+        assert_eq!(converted.ir["nodes"][0]["text"], "Welcome");
+        assert!(converted.warnings.is_empty());
+
+        let mut target = Session::new();
+        target.execute(super::CMD, &converted.ir).unwrap();
+        let root = target.selection()[0];
+        assert_eq!(target.doc().unwrap().node(root).unwrap().name, "Home");
     }
 }

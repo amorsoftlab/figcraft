@@ -160,6 +160,7 @@ const fn k(group: Group, id: &'static str, mac: &'static [&'static str]) -> Bind
 pub static KEYS: &[Binding] = &[
     // Essential
     k(Essential, "app.actions", &["Cmd+K", "Cmd+/"]).label("Actions…"),
+    k(Essential, "ai.open", &["Cmd+J"]).label("AI design…"),
     k(Essential, "help.shortcuts", &["Ctrl+Shift+?"]).both(),
     k(Essential, "view.toggleUi", &["Cmd+\\"]),
     k(Essential, "view.fullscreen", &["Ctrl+Cmd+F"]).win(&["F11"]),
@@ -259,7 +260,7 @@ pub static KEYS: &[Binding] = &[
     k(Shape, "object.removeFill", &["Alt+/"]),
     k(Shape, "object.removeStroke", &["Shift+/"]),
     k(Shape, "object.swapFillStroke", &["Shift+X"]),
-    k(Shape, "vector.join", &["Cmd+J"]),
+    // Cmd+J joins points while the vector editor owns the keyboard; on the canvas it opens AI design.
     k(Shape, "vector.smoothJoin", &["Shift+Cmd+J"]),
     k(Shape, "vector.deleteHeal", &["Shift+Delete"]),
     // Selection

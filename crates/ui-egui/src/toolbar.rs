@@ -149,22 +149,24 @@ fn main_toolbar(app: &mut FigApp, ui: &mut Ui, canvas: Rect, t: &Tokens) {
     // Resources (components, plugins), AI design and the Actions palette.
     for (icon, tip, id) in [
         (Icon::Assets, crate::shortcuts::key_tip(tr("Resources"), "Shift+I"), "resources"),
-        (Icon::Sparkle, tr("AI design"), "ai"),
+        (Icon::Sparkle, crate::shortcuts::tip(tr("AI design"), "ai.open"), "ai"),
         (Icon::Actions, crate::shortcuts::tip(tr("Actions"), "app.actions"), "actions"),
     ] {
         let r = Rect::from_center_size(pos2(x + cell / 2.0, cy), vec2(cell, cell));
         let resp = ui.interact(r, ui.id().with(id), Sense::click()).tip(tip);
         if id == "actions" {
             app.ui.actions_rect = Some(r);
+        } else if id == "ai" {
+            app.ui.ai_rect = Some(r);
         }
-        // The Actions button reads on while its panel is open; clicking it again closes it.
-        let actions_open = id == "actions" && app.ui.palette.is_some();
-        if actions_open {
+        // Floating panels read on while open; clicking their toolbar button again closes them.
+        let panel_open = (id == "actions" && app.ui.palette.is_some()) || (id == "ai" && app.ui.ai.open);
+        if panel_open {
             ui.painter().rect_filled(r, CornerRadius::same(5), t.accent);
         } else if resp.hovered() {
             ui.painter().rect_filled(r, CornerRadius::same(5), t.hover);
         }
-        icons::paint(ui.painter(), glyph_rect(r), icon, if actions_open { t.accent_on } else { t.icon });
+        icons::paint(ui.painter(), glyph_rect(r), icon, if panel_open { t.accent_on } else { t.icon });
         if resp.clicked() {
             if id == "actions" {
                 crate::menus::toggle_palette(&mut app.ui);

@@ -2,7 +2,7 @@
 
 **Stage: alpha** · next: beta, ~26 points and ~162–292 h away (one Opus 5.5 agent; ~33–67 h wall-clock with 5 agents)
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-17 · **Change:** minor (community batch #753: Selection colors, smart-selection spacing, a Present tab; language table re-measured from the catalogs; community fixes from #524 up (55 PRs: `.fig` import fidelity, paste from other apps, the Actions palette, editor fixes, server limits) and a boolean-op crash guard; number variables in the text content picker (#629); frames and sections convert into each other (#719); bounded canvas pan overscan; community fixes from #478 up and a control-channel fix (#589); bounded canvas pan overscan; Typography spacing icons support scrubbing (#373); font scans skip named pipes; system theme on first run; recent files as cards with thumbnails on the home screen; community fixes: lost images reported on loading (#207), SVG import budgets (#190), Leptos code (#223), full screen (#227), server snapshots readable again (#188), owner-only preferences (#200), ruzstd 0.9.1 (#182), layer cycle repair (#205), batch rollback, Direct3D 12 on Windows, plugin metering (#192); vector edit mode regions: hover hatch, selection and drag; SVG/PDF exports refuse over-depth documents (#208); bounded MCP/control framing, connections and queues (#201); plugin log limits (#191); live-session revert guard (#198); attached MCP no longer replays after a lost reply (#194); repeat command recursion fix; the Layout panel's constrain-proportions link scales the other side, #220; core editor leftovers: component playground, auto gap handles, variables inside styles, inner shadows and background blur on groups, command-made text readable on dark pages, a one-step frame/group convert, delays on mouse triggers and manual overlay offsets, wrapped-line alignment; `.fig` export: instance sizes, variables with modes, shared styles, variable-width strokes; starter templates, a Templates tab and Getting started tips on the home screen; your online files; everyday editing partials: number fields, outline options, Hide when publishing, cursors, panel widths, dark pages; sharing with a join code; text box sizes measured against documents re-saved by other software; live sessions per document; .fig export checked by opening written files in other software; a public figcraft-server: open hosting, owner tokens, per-address limits, idle expiry, moderation, install.sh; experimental .fig export; keyboard shortcut parity suite and bindings; Simplified Chinese draft catalog; Latin American Spanish overlay; prototyping tail: gamepad triggers, widgets in prototypes, mode lookups; plugin directory on figcraft-server; Japanese and Korean draft catalogs and CJK UI fonts; plugin widgets and the plugin panel tail; French, German and Brazilian Portuguese draft catalogs; cursor chat and spotlight in live sessions; layers and assets panels behaviour suite and fixes; vector multi-edit and edit tail; dev resources links; extended collections tail; branch version history and finer list merges; headline percentages recomputed from the area table: feature breadth ~84%, core ~94%, mainstream ~50%; text lists, hanging punctuation and decoration styles; comments and version history behaviour suite and fixes; canvas navigation, guides and grids behaviour suite and fixes; export and inspect behaviour suite and fixes; .fig import: editable vector networks and more layer kinds; shapes and vector behaviour suite and fixes; paint and effects behaviour suite and fixes; frames, groups, sections and masks behaviour suite and fixes; styles and variables behaviour suite and fixes; prototyping behaviour suite and fixes; components behaviour suite and fixes; embedded image colour profiles; layers panel keyboard: F2 rename, Shift+F10 context menu, keyboard box selection, 10k-layer QA; per-side stroke weight variables; text behaviour suite: CJK line breaking, metrics, vertical trim; selection and transform behaviour suite and fixes; `.fig` import, best effort; Windows QA pass with eight fixes; auto layout behaviour suite and fixes; Display P3: gamut warning and soft-proof (true P3 blocked upstream); several windows; localization layer with a draft Spanish catalog; hosting figcraft-server: wss in the desktop app, server releases, deployment guide; plugin panels and settings; canvas fixes: boolean hit testing on the result, group drags, frame outlines and slices; code connect; stretch and scatter brushes, pen pressure; text on a path and pattern fills; team libraries on the server and swap library; branches: create, update from main, review and merge; animated GIF fills and TIFF images; Open recent, outlines for the selection and mask outlines: menu breadth 100%; extended collections, variables import/export, gradient stop and variant bindings; feature breadth ~80%; ready ~49%) · **Target:** Figma Design (desktop app 126.10.7)
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-22 · **Change:** minor (M12 AI prompt bar and optional Google Stitch MCP adapter; earlier detail remains in the revision history) · **Target:** Figma Design (desktop app 126.10.7)
 
 FigCraft is a clean-room, open-source, pure-Rust reimplementation of the Figma design workflow,
 native on macOS, Windows, Linux and FreeBSD and in the browser, fully drivable by agents through
@@ -66,7 +66,7 @@ native speakers' reviews of the six language drafts need people.
 | Localization | 39% (layer; English; Spanish with a Latin American overlay, French, German, Brazilian Portuguese, Japanese, Korean, Simplified Chinese drafts; CJK UI fonts) | 29–51 | [localization-parity](docs/localization-parity.md) |
 | Platforms | 75% | 10–20 | [hardware-parity](docs/hardware-parity.md) |
 | Ecosystem / plugins | 38% (own WASM plugins with panels, settings and widgets; a self-hosted plugin directory) | 8–26 | [gaps](docs/gaps.md) |
-| AI features | 0% | 30–60 | [gaps](docs/gaps.md) |
+| AI features | 8% | 24–50 | [gaps](docs/gaps.md) |
 
 ## Features
 
@@ -92,7 +92,7 @@ native speakers' reviews of the six language drafts need people.
 | Plugins & widgets | 60% | 35% | 8–26 | [plugins](docs/plugins.md) |
 | Team libraries | 70% | 40% | 4–8 | [components-parity](docs/components-parity.md) |
 | Figma Draw extras | 88% | 60% | 1–3 | [gaps](docs/gaps.md) |
-| AI features | 0% | 0% | 30–60 | [gaps](docs/gaps.md) |
+| AI features | 20% | 8% | 24–50 | [gaps](docs/gaps.md) |
 
 ## Languages
 
@@ -131,12 +131,22 @@ Ranked; detail and milestones in [`docs/roadmap.md`](docs/roadmap.md).
 
 ## Progress log
 
+- **2026-10-22** · AI prompt and Stitch connector (M12): the Sparkle button and Cmd/Ctrl+J open a
+  floating prompt bar with Mobile, Desktop and Tablet targets. The desktop adapter reads
+  `STITCH_API_KEY` only at submit time, creates a Stitch project when the optional project ID is
+  blank, performs MCP generation off the UI thread without replaying a mutating request, downloads
+  only an HTTPS editable export within a 64 MiB cap, converts its first screen to the bounded
+  provider-neutral IR and applies native layers through `ai.applyDesign`. A missing editable export
+  leaves the canvas unchanged rather than inserting a screenshot. The browser reports the provider
+  as unavailable. Provider envelope/conversion/UI shortcut tests pass; the bar was visually checked
+  at 1440×900. No live request was made because no credential was supplied.
 - **2026-10-22** · AI provider boundary (M12 groundwork): Preferences can select an optional
   Google Stitch provider and project without storing a credential (the future desktop adapter
   reads `STITCH_API_KEY` only from its environment); an original code-drawn sparkle opens that
   setup. `ai.applyDesign` accepts a bounded provider-neutral design IR and creates native editable
   frames, rectangles, ellipses and text as one undo step (500 layers, depth 32, finite size/text
-  limits; junk and unknown layers are errors). No Stitch request is made yet; AI remains 0% and
+  limits; junk and unknown layers are errors). At this groundwork point no Stitch request was made;
+  the prompt/provider entry above supersedes that status, and
   the estimates are unchanged.
 - **2026-10-17** · Control channel while the window is minimised (M8, #720): a minimised or covered window answers every request that acts on the app's state (edits, `ui.inspect`, `ui.pointer`, `ui.key`, `ui.type`, `ui.set`, `app.quit`…) without drawing, and what needs a drawn frame (`ui.screenshot`, `ui.input`, `window.new`) is an error at once; before, those waited up to 60 s and held up every later request on the connection (an attached agent's `inspect_ui` or window screenshot stalled until the window came back). Measured on Windows 11, minimised: requests ~100 ms each (eframe wakes a minimised window at most ten times a second; ~2 ms on screen), a window screenshot fails in ~100 ms instead of 60 s, idle CPU 0. Numbers unchanged.
 - **2026-10-17** · Number variables on text content (M3, #629): the Typography section's variable picker also lists number variables for a text layer's content, as the engine already accepted (the text shows the number, e.g. 42.5, and follows the variable). Other text fields keep their own types. Numbers unchanged.
@@ -323,6 +333,7 @@ Ranked; detail and milestones in [`docs/roadmap.md`](docs/roadmap.md).
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-22 | minor | M12: floating prompt bar, device selector, canonical Cmd/Ctrl+J binding (vector edit keeps point joining), non-blocking Google Stitch MCP adapter, optional automatic project creation, bounded editable-export conversion through `ai.applyDesign`; credentials remain environment-only. AI 0% → 8%, remaining 30–60 h → 24–50 h; headline rounding unchanged. |
 | 2026-10-20 | minor | A document dropped on the canvas opens (#916): a `.figcraft`, `.fig` or file JSON dropped on the canvas opens as a file of its own, as on the home screen, in the browser too; it used to add its pages to the file in front. Images and SVG still import at the drop point, File ▸ Import still adds pages, and dragging only documents over the canvas says "Drop to open" (not in the browser, which names no file until the drop). Numbers unchanged |
 | 2026-10-20 | minor | Duplicating a main component makes an instance (#892): Duplicate and Alt-drag copied a main component as a second main; within its file the copy is now an instance of it, as Copy then Paste already was (a variant duplicated in its set stays a variant). Numbers unchanged. |
 | 2026-10-20 | minor | Readable disabled and selected text (#890): the dim text colour (disabled buttons, placeholders, hints) is at least 3:1 against panels, fields and selected rows in both themes (it was 2.1:1 in the light theme), a disabled button is grey with that text instead of fading to 40%, and selected text (renaming a page or layer, any text box) takes the theme's readable green on the highlight (1.4:1 in the dark theme before, now 4.2:1 or more); checked with the colour contrast helper (`theme::tests`). Numbers unchanged |

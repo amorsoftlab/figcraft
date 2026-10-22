@@ -6,6 +6,7 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 pub mod a11y;
+pub mod ai_prompt;
 pub mod assets_panel;
 pub mod bidi;
 pub mod branch_ui;
@@ -74,6 +75,8 @@ mod theme_startup_tests;
 
 #[cfg(test)]
 mod a11y_tests;
+#[cfg(test)]
+mod ai_prompt_tests;
 #[cfg(test)]
 mod async_dialog_tests;
 #[cfg(test)]
@@ -515,6 +518,10 @@ pub struct UiState {
     pub palette_armed: bool,
     /// This frame's Actions toolbar button rect: presses on it toggle, never dismiss.
     pub actions_rect: Option<egui::Rect>,
+    /// Floating AI design prompt and its optional provider job.
+    pub ai: ai_prompt::State,
+    /// This frame's AI toolbar button rect: presses on it toggle, never dismiss.
+    pub ai_rect: Option<egui::Rect>,
     /// The Variables editor, when open.
     pub variables: Option<variables_panel::Editor>,
     pub about: bool,
@@ -682,6 +689,8 @@ impl Default for UiState {
             palette_hi: 0,
             palette_armed: false,
             actions_rect: None,
+            ai: ai_prompt::State::default(),
+            ai_rect: None,
             variables: None,
             about: false,
             about_tab: dialogs::AboutTab::About,
@@ -979,8 +988,7 @@ impl FigApp {
                 }
                 "dialog.preferences" => self.ui.preferences = true,
                 "dialog.ai" => {
-                    self.ui.preferences = true;
-                    self.toast(i18n::tr("Configure an optional AI provider. Credentials stay outside FigCraft preferences."));
+                    ai_prompt::toggle(self);
                 }
                 "dialog.missingFonts" => missing_fonts::request(self),
                 "panel.shortcuts" => self.ui.shortcuts_panel = !self.ui.shortcuts_panel,
@@ -1688,6 +1696,7 @@ impl FigApp {
         dialogs::keys(self, &ctx);
         shortcuts::handle(self, &ctx, typing, swallowed);
         menus::popups(self, &ctx);
+        ai_prompt::show(self, &ctx);
         variable_ui::picker(self, &ctx);
         style_picker::show(self, &ctx);
         self.end_unwanted_text_preview(&ctx);
