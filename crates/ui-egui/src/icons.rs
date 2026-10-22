@@ -42,6 +42,8 @@ icons! {
     Text,
     Comment,
     Actions,
+    /// FigCraft's original AI-design mark: one four-point sparkle and two small glints.
+    Sparkle,
     Chevron,
     ChevronRight,
     ChevronLeft,
@@ -549,6 +551,13 @@ fn draw(p: &P, icon: Icon) {
             p.path(&b, true);
         }
         Actions => p.poly(&[(9.0, 2.0), (3.5, 9.0), (7.5, 9.0), (6.5, 14.0), (12.5, 7.0), (8.5, 7.0)], true),
+        Sparkle => {
+            p.poly(&[(7.5, 1.5), (9.0, 6.5), (13.5, 8.0), (9.0, 9.5), (7.5, 14.5), (6.0, 9.5), (1.5, 8.0), (6.0, 6.5)], true);
+            p.line(12.5, 1.5, 12.5, 4.5);
+            p.line(11.0, 3.0, 14.0, 3.0);
+            p.line(2.5, 2.0, 2.5, 4.0);
+            p.line(1.5, 3.0, 3.5, 3.0);
+        }
         Chevron => p.poly(&[(4.5, 6.0), (8.0, 9.5), (11.5, 6.0)], false),
         ChevronUp => p.poly(&[(4.5, 10.0), (8.0, 6.5), (11.5, 10.0)], false),
         ChevronRight => p.poly(&[(6.0, 4.5), (9.5, 8.0), (6.0, 11.5)], false),

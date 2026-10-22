@@ -389,6 +389,36 @@ pub fn specs() -> Vec<CommandSpec> {
         ),
         spec!("pref.autoSave", "Save files automatically", "{on?}", false, |s, p| pref(s, p, |x| &mut x.auto_save)),
         spec!("pref.startOnHome", "Start on the Home screen", "{on?}", false, |s, p| pref(s, p, |x| &mut x.start_on_home)),
+        spec!(
+            "pref.aiProvider",
+            "AI design provider",
+            "{provider: none|stitch} → {provider}: selects an optional provider; credentials are never command parameters or preferences",
+            false,
+            |s, p| {
+                let provider = req_string("pref.aiProvider", p, "provider")?;
+                let provider = provider.trim().to_ascii_lowercase();
+                if !matches!(provider.as_str(), "none" | "stitch") {
+                    return Err(bad("pref.aiProvider", "`provider` must be `none` or `stitch`"));
+                }
+                s.prefs.ai_provider = provider;
+                Ok(json!({"provider": s.prefs.ai_provider}))
+            }
+        ),
+        spec!(
+            "pref.stitchProject",
+            "Google Stitch project",
+            "{projectId? (digits; empty or omitted: choose/create when generating)} → {projectId, configured}",
+            false,
+            |s, p| {
+                let project = string(p, "projectId").unwrap_or_default();
+                let project = project.trim();
+                if project.len() > 32 || (!project.is_empty() && !project.bytes().all(|b| b.is_ascii_digit())) {
+                    return Err(bad("pref.stitchProject", "`projectId` must be empty or at most 32 digits"));
+                }
+                s.prefs.stitch_project_id = project.to_string();
+                Ok(json!({"projectId": s.prefs.stitch_project_id, "configured": !s.prefs.stitch_project_id.is_empty()}))
+            }
+        ),
         spec!("pref.nudge", "Nudge amount", "{small?, big?}", false, |s, p| {
             s.prefs.nudge_small = num(p, "small").unwrap_or(s.prefs.nudge_small).clamp(0.01, 1000.0);
             s.prefs.nudge_big = num(p, "big").unwrap_or(s.prefs.nudge_big).clamp(0.01, 10000.0);
@@ -559,5 +589,40 @@ mod start_on_home_tests {
         assert_eq!(s.execute("pref.startOnHome", &json!({"on": false})).unwrap()["on"], false);
         let old: crate::Prefs = serde_json::from_value(json!({"theme": "dark"})).unwrap();
         assert!(!old.start_on_home);
+    }
+}
+
+#[cfg(test)]
+mod ai_preferences_tests {
+    use serde_json::json;
+
+    use crate::{Prefs, Session};
+
+    #[test]
+    fn provider_and_non_secret_project_are_optional_and_persist() {
+        let mut s = Session::new();
+        assert_eq!(s.prefs.ai_provider, "none");
+        assert!(s.prefs.stitch_project_id.is_empty());
+        assert_eq!(s.execute("pref.aiProvider", &json!({"provider": "Stitch"})).unwrap()["provider"], "stitch");
+        assert_eq!(s.execute("pref.stitchProject", &json!({"projectId": "10329545214199138484"})).unwrap()["configured"], true);
+
+        let saved = serde_json::to_value(&s.prefs).unwrap();
+        assert_eq!(saved["ai_provider"], "stitch");
+        assert_eq!(saved["stitch_project_id"], "10329545214199138484");
+        assert!(!saved.to_string().contains("API_KEY"));
+        let loaded: Prefs = serde_json::from_value(saved).unwrap();
+        assert_eq!(loaded.stitch_project_id, "10329545214199138484");
+
+        assert!(s.execute("pref.aiProvider", &json!({"provider": "other"})).is_err());
+        assert!(s.execute("pref.stitchProject", &json!({"projectId": "projects/123"})).is_err());
+        assert_eq!(s.execute("pref.stitchProject", &json!({})).unwrap()["configured"], false);
+    }
+
+    #[test]
+    fn opening_ai_only_requests_interface_work() {
+        let mut s = Session::new();
+        s.execute("ai.open", &json!({})).unwrap();
+        let request = s.ui_requests.pop().unwrap();
+        assert_eq!(request.kind, "dialog.ai");
     }
 }

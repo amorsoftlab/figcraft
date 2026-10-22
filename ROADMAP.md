@@ -131,6 +131,13 @@ Ranked; detail and milestones in [`docs/roadmap.md`](docs/roadmap.md).
 
 ## Progress log
 
+- **2026-10-22** · AI provider boundary (M12 groundwork): Preferences can select an optional
+  Google Stitch provider and project without storing a credential (the future desktop adapter
+  reads `STITCH_API_KEY` only from its environment); an original code-drawn sparkle opens that
+  setup. `ai.applyDesign` accepts a bounded provider-neutral design IR and creates native editable
+  frames, rectangles, ellipses and text as one undo step (500 layers, depth 32, finite size/text
+  limits; junk and unknown layers are errors). No Stitch request is made yet; AI remains 0% and
+  the estimates are unchanged.
 - **2026-10-17** · Control channel while the window is minimised (M8, #720): a minimised or covered window answers every request that acts on the app's state (edits, `ui.inspect`, `ui.pointer`, `ui.key`, `ui.type`, `ui.set`, `app.quit`…) without drawing, and what needs a drawn frame (`ui.screenshot`, `ui.input`, `window.new`) is an error at once; before, those waited up to 60 s and held up every later request on the connection (an attached agent's `inspect_ui` or window screenshot stalled until the window came back). Measured on Windows 11, minimised: requests ~100 ms each (eframe wakes a minimised window at most ten times a second; ~2 ms on screen), a window screenshot fails in ~100 ms instead of 60 s, idle CPU 0. Numbers unchanged.
 - **2026-10-17** · Number variables on text content (M3, #629): the Typography section's variable picker also lists number variables for a text layer's content, as the engine already accepted (the text shows the number, e.g. 42.5, and follows the variable). Other text fields keep their own types. Numbers unchanged.
 - **2026-10-17** · Frames and sections convert into each other (M1, #719): `object.convertToSection` turns a frame on the page or in a section into a section in place (same box, name, fill and layers, which stay where they are; what only a frame has goes: auto layout, clipping, layout grids, guides, scrolling), and `object.convertToFrame` now also turns a section into a frame that keeps its fill and doesn't clip, so the look stays. Nested frames, instances, main components and sections holding sections are refused with the reason; one undo step each. Both are in the canvas context menu (Convert to section / Convert to frame) and in Spanish. Numbers unchanged.

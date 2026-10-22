@@ -268,6 +268,54 @@ pub fn show(app: &mut FigApp, ctx: &Context) {
                 crate::widgets::label(ui, tr("Online sharing is off: files are shared on the local network only."), t.text_secondary);
             }
             ui.add_space(8.0);
+            ui.separator();
+            ui.add_space(8.0);
+            ui.label(tr("AI design"));
+            ui.horizontal(|ui| {
+                ui.label(tr("Provider"));
+                let selected = if prefs.ai_provider == "stitch" { tr("Google Stitch") } else { tr("Off") };
+                let response = crate::widgets::dropdown(ui, selected, 220.0, None);
+                let mut provider = None;
+                crate::right::menu_popup(&response).show(|ui| {
+                    for (id, label) in [("none", tr("Off")), ("stitch", tr("Google Stitch"))] {
+                        if crate::right::menu_check(ui, prefs.ai_provider == id, label, "") {
+                            provider = Some(id);
+                            ui.close();
+                        }
+                    }
+                });
+                if let Some(provider) = provider {
+                    app.run("pref.aiProvider", json!({"provider": provider}));
+                }
+            });
+            if prefs.ai_provider == "stitch" {
+                ui.horizontal(|ui| {
+                    ui.label(tr("Stitch project ID"));
+                    if let Some(project) = crate::widgets::text_field_named(
+                        ui,
+                        egui::Id::new("pref_stitch_project"),
+                        &prefs.stitch_project_id,
+                        220.0,
+                        tr("Stitch project ID"),
+                    ) {
+                        app.run("pref.stitchProject", json!({"projectId": project}));
+                    }
+                });
+                crate::widgets::label(ui, tr("Optional. Leave blank to choose or create a project when generating."), t.text_secondary);
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    let configured = std::env::var_os("STITCH_API_KEY").is_some_and(|v| !v.is_empty());
+                    let status = if configured {
+                        tr("STITCH_API_KEY is available to this process. Its value is never saved or displayed.")
+                    } else {
+                        tr("Set STITCH_API_KEY before starting FigCraft. The key is never saved in preferences or documents.")
+                    };
+                    crate::widgets::label(ui, status, t.text_secondary);
+                }
+                #[cfg(target_arch = "wasm32")]
+                crate::widgets::label(ui, tr("Google Stitch generation is available in the desktop app only."), t.text_secondary);
+            }
+            ui.add_space(8.0);
             ui.horizontal(|ui| {
                 ui.label(tr("Nudge amount"));
                 let mut small = prefs.nudge_small;

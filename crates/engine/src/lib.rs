@@ -9,6 +9,7 @@
 // Tests make and inspect files directly; shipped code goes through `file_access` (clippy.toml).
 #![cfg_attr(test, allow(clippy::disallowed_methods))]
 
+pub mod ai;
 pub mod al_keys;
 pub mod annotations;
 pub mod arc_handles;
@@ -658,6 +659,13 @@ pub struct Prefs {
     pub auto_save: bool,
     /// The desktop app starts on the Home screen instead of in a new file.
     pub start_on_home: bool,
+    /// The optional AI design provider: `"none"` or `"stitch"`. Credentials are deliberately
+    /// not preferences: the desktop adapter reads `STITCH_API_KEY` from its environment, so a
+    /// saved preferences file, document, command journal or control response never carries it.
+    pub ai_provider: String,
+    /// An optional Google Stitch project id. Empty lets the adapter create or ask for a project;
+    /// unlike the API key, this is not a credential.
+    pub stitch_project_id: String,
     /// `figcraft://` invite links open this app (`collab.registerLinks`); `None`: on for installed
     /// builds, off for development builds.
     pub invite_links: Option<bool>,
@@ -726,6 +734,8 @@ impl Default for Prefs {
             ui_scale: 1.0,
             auto_save: false,
             start_on_home: false,
+            ai_provider: "none".into(),
+            stitch_project_id: String::new(),
             invite_links: None,
             plugins: Vec::new(),
             plugin_settings: BTreeMap::new(),

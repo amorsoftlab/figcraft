@@ -413,8 +413,14 @@ No alpha blockers: the alpha gate in [`roadmap.md`](roadmap.md#alpha-gate) passe
 - **Estimate:** 4–8 h.
 
 ### 19. AI features
-- **Missing:** Figma AI (first draft, rename layers, remove background, image generation and
-  editing, visual search, Make).
+- **Groundwork (2026-10-22):** optional provider and Stitch project preferences (no credentials in
+  preferences, documents, commands or logs; the desktop adapter will read `STITCH_API_KEY` from
+  its environment), an original code-drawn AI toolbar mark, and `ai.applyDesign`: a bounded,
+  provider-neutral design IR that creates native editable frames, rectangles, ellipses and text as
+  one undo step. `ai.open` takes an interface to the setup without opening one for scripts.
+- **Missing:** the asynchronous Stitch adapter and prompt/results UI; richer generated-layer IR;
+  Figma AI behaviours (first draft, rename layers, remove background, image generation and
+  editing, visual search). Make remains a separate-product scope decision.
 - **Estimate:** 30–60 h with openly licensed local models. **Owner decision needed.**
 
 ### 20. Mobile apps

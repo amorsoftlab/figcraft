@@ -91,7 +91,7 @@ pub fn show(app: &mut FigApp, ui: &mut Ui) {
 /// The main toolbar pill's width: the Actions palette matches it so the two read as one bar.
 pub(crate) fn main_width() -> f32 {
     let (cell, gap) = (32.0, 4.0);
-    GROUPS.len() as f32 * (cell + gap) + gap * 10.0 + 2.0 * (cell + gap) + 16.0 + 4.0 * 34.0 + 24.0
+    GROUPS.len() as f32 * (cell + gap) + gap * 10.0 + 3.0 * (cell + gap) + 16.0 + 4.0 * 34.0 + 24.0
 }
 
 /// The main toolbar pill: the tool groups with their flyouts, Resources and Actions, then the
@@ -146,9 +146,10 @@ fn main_toolbar(app: &mut FigApp, ui: &mut Ui, canvas: Rect, t: &Tokens) {
             flyout(app, ui, g, pos2(r.min.x, rect.min.y - 8.0));
         }
     }
-    // Resources (components, plugins) opens the Assets panel; Actions palette.
+    // Resources (components, plugins), AI design and the Actions palette.
     for (icon, tip, id) in [
         (Icon::Assets, crate::shortcuts::key_tip(tr("Resources"), "Shift+I"), "resources"),
+        (Icon::Sparkle, tr("AI design"), "ai"),
         (Icon::Actions, crate::shortcuts::tip(tr("Actions"), "app.actions"), "actions"),
     ] {
         let r = Rect::from_center_size(pos2(x + cell / 2.0, cy), vec2(cell, cell));
@@ -167,6 +168,8 @@ fn main_toolbar(app: &mut FigApp, ui: &mut Ui, canvas: Rect, t: &Tokens) {
         if resp.clicked() {
             if id == "actions" {
                 crate::menus::toggle_palette(&mut app.ui);
+            } else if id == "ai" {
+                app.run("ai.open", json!({}));
             } else {
                 app.run("view.assets", json!({}));
             }

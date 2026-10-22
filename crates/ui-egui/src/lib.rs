@@ -978,6 +978,10 @@ impl FigApp {
                     self.ui.about_tab = dialogs::AboutTab::About;
                 }
                 "dialog.preferences" => self.ui.preferences = true,
+                "dialog.ai" => {
+                    self.ui.preferences = true;
+                    self.toast(i18n::tr("Configure an optional AI provider. Credentials stay outside FigCraft preferences."));
+                }
                 "dialog.missingFonts" => missing_fonts::request(self),
                 "panel.shortcuts" => self.ui.shortcuts_panel = !self.ui.shortcuts_panel,
                 "palette.actions" => menus::toggle_palette(&mut self.ui),
